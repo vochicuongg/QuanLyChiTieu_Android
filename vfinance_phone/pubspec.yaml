@@ -1,0 +1,46 @@
+name: vfinance_phone
+description: "VFinance - Expense Management for Android Phone"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.5.4
+  flutter_native_splash: ^2.4.7
+  http: ^1.2.0
+  package_info_plus: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#1a1a2e"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+
+flutter_native_splash:
+  color: "#1a1a2e"
+  image: "assets/icon/app_icon.png"
+  android: true
+  ios: false
+  android_12:
+    color: "#1a1a2e"
+    image: "assets/icon/app_icon.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icon/app_icon.png
