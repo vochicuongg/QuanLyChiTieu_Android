@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "834792989654",
+    "project_id": "vfinance-d6d17",
+    "storage_bucket": "vfinance-d6d17.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:834792989654:android:a7b7a031d5f4c5b8fdba77",
+        "android_client_info": {
+          "package_name": "com.chiscung.vfinance_phone"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "834792989654-a14ddgahvff41lvkhj9de4j194b5rldh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chiscung.vfinance_phone",
+            "certificate_hash": "5064ce4b05dd7f87f25b94e37bc83002461e8765"
+          }
+        },
+        {
+          "client_id": "834792989654-cm9um22qasvt78ec63fb0nr2sskibv4e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVZLIGwCy04hxX9b0PjKF8wBNm8fcnEgA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "834792989654-cm9um22qasvt78ec63fb0nr2sskibv4e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

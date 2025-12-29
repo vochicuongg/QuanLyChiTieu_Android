@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'main.dart';
+import 'services/auth_service.dart';
+import 'services/transaction_service.dart'; // Cloud First
+import 'package:firebase_core/firebase_core.dart';
 
 // =================== INCOME/BALANCE SCREEN ===================
 class SoDuScreen extends StatefulWidget {
@@ -42,10 +45,20 @@ class _SoDuScreenState extends State<SoDuScreen> {
     );
 
     if (soTien != null && soTien > 0) {
+      final now = DateTime.now();
       setState(() {
-        danhSachThuNhap.add(ChiTieuItem(soTien: soTien, thoiGian: DateTime.now()));
+        danhSachThuNhap.add(ChiTieuItem(soTien: soTien, thoiGian: now));
         widget.onDataChanged?.call(danhSachThuNhap);
       });
+      
+      // Cloud First: Save to Firestore
+      if (transactionService.isLoggedIn) {
+        transactionService.add(
+          muc: ChiTieuMuc.soDu.name,
+          soTien: soTien,
+          thoiGian: now,
+        );
+      }
     }
   }
 
@@ -66,11 +79,39 @@ class _SoDuScreenState extends State<SoDuScreen> {
     }
   }
 
-  void xoaThuNhap(int index) {
+  Future<void> xoaThuNhap(int index) async {
+    final item = danhSachThuNhap[index];
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        content: Text(appLanguage == 'vi' 
+          ? "Bạn có muốn xóa thu nhập '${formatAmountWithCurrency(item.soTien)}' này không?"
+          : "Do you want to delete this income '${formatAmountWithCurrency(item.soTien)}'?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(appLanguage == 'vi' ? 'Xóa' : 'Delete', style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
     setState(() {
       danhSachThuNhap.removeAt(index);
       widget.onDataChanged?.call(danhSachThuNhap);
     });
+    
+    // Cloud First: Delete from Firestore
+    if (item.id != null) {
+      transactionService.delete(item.id!);
+    }
   }
 
   @override
@@ -124,10 +165,6 @@ class _SoDuScreenState extends State<SoDuScreen> {
                       style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      'Còn lại: ${remaining >= 0 ? formatAmountWithCurrency(remaining) : '-${formatAmountWithCurrency(remaining.abs())}'}',
-                      style: TextStyle(color: remaining >= 0 ? Colors.white : Colors.red[200], fontSize: 16),
-                    ),
                   ],
                 ),
               ),
@@ -155,7 +192,7 @@ class _SoDuScreenState extends State<SoDuScreen> {
                       child: ListTile(
                         leading: const CircleAvatar(
                           backgroundColor: Color(0xFF4CAF93),
-                          child: Icon(Icons.arrow_downward, color: Colors.white),
+                          child: Icon(Icons.add_rounded, color: Colors.white),
                         ),
                         title: Text(formatAmountWithCurrency(item.soTien)),
                         subtitle: Text(dinhDangGio(item.thoiGian)),
@@ -221,10 +258,20 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     );
 
     if (soTien != null && soTien > 0) {
+      final now = DateTime.now();
       setState(() {
-        danhSachChi.add(ChiTieuItem(soTien: soTien, thoiGian: DateTime.now()));
+        danhSachChi.add(ChiTieuItem(soTien: soTien, thoiGian: now));
         widget.onDataChanged?.call(danhSachChi);
       });
+      
+      // Cloud First: Sync to Firestore
+      if (transactionService.isLoggedIn) {
+        transactionService.add(
+          muc: widget.muc.name,
+          soTien: soTien,
+          thoiGian: now,
+        );
+      }
     }
   }
 
@@ -244,7 +291,36 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     }
   }
 
-  void xoaChiTieu(int index) {
+  Future<void> xoaChiTieu(int index) async {
+    final item = danhSachChi[index];
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        content: Text(appLanguage == 'vi' 
+          ? "Bạn có muốn xóa chi tiêu ${formatAmountWithCurrency(item.soTien)} này không?"
+          : "Do you want to delete this expense ${formatAmountWithCurrency(item.soTien)}?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(appLanguage == 'vi' ? 'Xóa' : 'Delete', style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    // Cloud First: Delete from Firestore
+    if (item.id != null) {
+      transactionService.delete(item.id!);
+    }
+    
+    // Optimistic UI update
     setState(() {
       danhSachChi.removeAt(index);
       widget.onDataChanged?.call(danhSachChi);
@@ -283,27 +359,23 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: widget.muc.color.withOpacity(0.2),
+                  gradient: LinearGradient(
+                    colors: [widget.muc.color, widget.muc.color.withOpacity(0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: widget.muc.color.withOpacity(0.5)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(widget.muc.icon, color: widget.muc.color, size: 40),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Tổng ${widget.muc.ten}', style: const TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 4),
-                          Text(
-                            formatAmountWithCurrency(tongChi),
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFF08080)),
-                          ),
-                        ],
-                      ),
+                    Text('Tổng ${widget.muc.ten}', style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 8),
+                    Text(
+                      formatAmountWithCurrency(tongChi),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -394,18 +466,98 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
     );
 
     if (result != null) {
+      final now = DateTime.now();
+      final soTien = result['soTien'] as int;
+      final tenChiTieu = result['ten'] as String;
+      
       setState(() {
         danhSachChi.add(ChiTieuItem(
-          soTien: result['soTien'] as int,
-          thoiGian: DateTime.now(),
-          tenChiTieu: result['ten'] as String,
+          soTien: soTien,
+          thoiGian: now,
+          tenChiTieu: tenChiTieu,
         ));
         widget.onDataChanged?.call(danhSachChi);
       });
+      
+      // Cloud First: Sync to Firestore
+      if (transactionService.isLoggedIn) {
+        transactionService.add(
+          muc: ChiTieuMuc.khac.name,
+          soTien: soTien,
+          thoiGian: now,
+          ghiChu: tenChiTieu,
+        );
+      }
     }
   }
 
-  void xoaChiTieu(int index) {
+  Future<void> chinhSuaChiTieu(int index) async {
+    final item = danhSachChi[index];
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NhapKhacScreen(
+          tenBanDau: item.tenChiTieu,
+          soTienBanDau: item.soTien,
+        ),
+      ),
+    );
+
+    if (result != null) {
+      final ten = result['ten'] as String;
+      final soTien = result['soTien'] as int;
+      setState(() {
+        danhSachChi[index] = item.copyWith(
+          tenChiTieu: ten,
+          soTien: soTien,
+          thoiGian: DateTime.now(),
+        );
+        widget.onDataChanged?.call(danhSachChi);
+      });
+
+      // Cloud First: Sync to Firestore
+      if (item.id != null) {
+        transactionService.update(
+          item.id!,
+          muc: ChiTieuMuc.khac.name,
+          soTien: soTien,
+          ghiChu: ten,
+          thoiGian: DateTime.now(),
+        );
+      }
+    }
+  }
+
+  Future<void> xoaChiTieu(int index) async {
+    final item = danhSachChi[index];
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        content: Text(appLanguage == 'vi' 
+          ? "Bạn có muốn xóa chi tiêu '${formatAmountWithCurrency(item.soTien)}' này không?"
+          : "Do you want to delete this expense '${formatAmountWithCurrency(item.soTien)}'?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(appLanguage == 'vi' ? 'Xóa' : 'Delete', style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    // Cloud First: Delete from Firestore
+    if (item.id != null) {
+      transactionService.delete(item.id!);
+    }
+    
+    // Optimistic UI update
     setState(() {
       danhSachChi.removeAt(index);
       widget.onDataChanged?.call(danhSachChi);
@@ -444,18 +596,23 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.2),
+                  gradient: LinearGradient(
+                    colors: [Colors.grey, Colors.grey.withOpacity(0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Tổng chi khác', style: TextStyle(color: Colors.white70)),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       formatAmountWithCurrency(tongChi),
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFF08080)),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -485,9 +642,18 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                         ),
                         title: Text(item.tenChiTieu ?? 'Chi tiêu', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                         subtitle: Text('${formatAmountWithCurrency(item.soTien)} • ${dinhDangGio(item.thoiGian)}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                          onPressed: () => xoaChiTieu(index),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              onPressed: () => chinhSuaChiTieu(index),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                              onPressed: () => xoaChiTieu(index),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -518,7 +684,15 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   void initState() {
     super.initState();
     if (widget.soTienBanDau != null) {
-      _controller.text = widget.soTienBanDau.toString();
+      if (appCurrency == '\$') {
+        if (exchangeRate > 0) {
+          _controller.text = (widget.soTienBanDau! * exchangeRate).toStringAsFixed(2);
+        } else {
+           _controller.text = (widget.soTienBanDau! / 25000).toStringAsFixed(2);
+        }
+      } else {
+        _controller.text = widget.soTienBanDau.toString();
+      }
     }
   }
 
@@ -529,7 +703,24 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   }
 
   void _xacNhan() {
-    final soTien = int.tryParse(_controller.text.replaceAll('.', '').replaceAll(',', ''));
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    int? soTien;
+    
+    if (appCurrency == '\$') {
+      try {
+        final usdAmount = double.parse(text.replaceAll(',', ''));
+        if (exchangeRate > 0) {
+           soTien = (usdAmount / exchangeRate).toInt();
+        } else {
+           soTien = (usdAmount * 25000).toInt();
+        }
+      } catch (_) {}
+    } else {
+      soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
+    }
+
     if (soTien != null && soTien > 0) {
       Navigator.pop(context, soTien);
     }
@@ -546,17 +737,23 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
           children: [
             TextField(
               controller: _controller,
-              keyboardType: TextInputType.number,
+              keyboardType: appCurrency == '\$' 
+                  ? const TextInputType.numberWithOptions(decimal: true)
+                  : TextInputType.number,
               autofocus: true,
               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                hintText: '0',
-                suffixText: 'đ',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                filled: true,
-                fillColor: const Color(0xFF2D2D3F),
-              ),
+                decoration: InputDecoration(
+                  hintText: '0',
+                  suffixText: appCurrency == 'đ' ? 'đ' : null,
+                  prefixText: appCurrency == '\$' ? '\$' : null,
+                  prefixStyle: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF2D2D3F) 
+                      : Colors.grey[200],
+                ),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -580,7 +777,10 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
 
 // =================== NHẬP CHI TIÊU KHÁC SCREEN ===================
 class NhapKhacScreen extends StatefulWidget {
-  const NhapKhacScreen({super.key});
+  final String? tenBanDau;
+  final int? soTienBanDau;
+
+  const NhapKhacScreen({super.key, this.tenBanDau, this.soTienBanDau});
 
   @override
   State<NhapKhacScreen> createState() => _NhapKhacScreenState();
@@ -590,13 +790,50 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
   final TextEditingController _tenController = TextEditingController();
   final TextEditingController _soTienController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.tenBanDau != null) {
+      _tenController.text = widget.tenBanDau!;
+    }
+    if (widget.soTienBanDau != null) {
+      if (appCurrency == '\$') {
+        if (exchangeRate > 0) {
+          _soTienController.text = (widget.soTienBanDau! * exchangeRate).toStringAsFixed(2);
+        } else {
+           _soTienController.text = (widget.soTienBanDau! / 25000).toStringAsFixed(2);
+        }
+      } else {
+        _soTienController.text = widget.soTienBanDau.toString();
+      }
+    }
+  }
+
   void _xacNhan() {
     final ten = _tenController.text.trim();
-    final soTien = int.tryParse(_soTienController.text.replaceAll('.', '').replaceAll(',', ''));
+    final text = _soTienController.text.trim();
+    
+    int? soTien;
+
+    if (appCurrency == '\$') {
+      try {
+        final usdAmount = double.parse(text.replaceAll(',', ''));
+        if (exchangeRate > 0) {
+           soTien = (usdAmount / exchangeRate).toInt();
+        } else {
+           soTien = (usdAmount * 25000).toInt();
+        }
+      } catch (_) {}
+    } else {
+      soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
+    }
+
     if (ten.isNotEmpty && soTien != null && soTien > 0) {
       Navigator.pop(context, {'ten': ten, 'soTien': soTien});
     }
   }
+
+
 
   @override
   void dispose() {
@@ -620,20 +857,27 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
                 labelText: 'Tên chi tiêu',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: const Color(0xFF2D2D3F),
+                fillColor: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF2D2D3F) 
+                    : Colors.grey[200],
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _soTienController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Số tiền',
-                suffixText: 'đ',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: const Color(0xFF2D2D3F),
-              ),
+              keyboardType: appCurrency == '\$' 
+                  ? const TextInputType.numberWithOptions(decimal: true)
+                  : TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Số tiền',
+                  suffixText: appCurrency == 'đ' ? 'đ' : null,
+                  prefixText: appCurrency == '\$' ? '\$' : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF2D2D3F) 
+                      : Colors.grey[200],
+                ),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -717,6 +961,11 @@ class _LichSuScreenState extends State<LichSuScreen> {
                 final monthKey = sortedMonths[monthIndex];
                 final daysData = combined[monthKey]!;
 
+                final totalMonthIncome = daysData.values
+                    .expand((lst) => lst)
+                    .where((e) => e.muc == ChiTieuMuc.soDu)
+                    .fold(0, (s, e) => s + e.item.soTien);
+
                 final totalMonth = daysData.values
                     .expand((lst) => lst)
                     .where((e) => e.muc != ChiTieuMuc.soDu)
@@ -734,20 +983,63 @@ class _LichSuScreenState extends State<LichSuScreen> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
                   child: ExpansionTile(
-                    title: Text(
-                      appLanguage == 'vi' ? 'Tháng $monthKey' : '${getMonthName(int.parse(monthKey.split('/')[0]))} ${monthKey.split('/')[1]}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    title: Row(
+                      children: [
+                        Text(
+                          appLanguage == 'vi' ? 'Tháng $monthKey' : '${getMonthName(int.parse(monthKey.split('/')[0]))} ${monthKey.split('/')[1]}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (totalMonth > 0)
+                              Text(
+                                formatAmountWithCurrency(totalMonth),
+                                style: const TextStyle(color: Color(0xFFF08080), fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            if (totalMonthIncome > 0)
+                              Text(
+                                formatAmountWithCurrency(totalMonthIncome),
+                                style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                    subtitle: Text(formatAmountWithCurrency(totalMonth), style: const TextStyle(color: Color(0xFFF08080))),
                     children: sortedDays.map((dayKey) {
                       final itemsOnDay = daysData[dayKey]!;
                       final dayTotal = itemsOnDay
                           .where((e) => e.muc != ChiTieuMuc.soDu)
                           .fold(0, (sum, e) => sum + e.item.soTien);
+                      final dayTotalIncome = itemsOnDay
+                          .where((e) => e.muc == ChiTieuMuc.soDu)
+                          .fold(0, (sum, e) => sum + e.item.soTien);
 
                       return ExpansionTile(
-                        title: Text(appLanguage == 'vi' ? 'Ngày ${dayKey.split('/')[0]}' : '${getOrdinalSuffix(int.parse(dayKey.split('/')[0]))}'),
-                        subtitle: Text(formatAmountWithCurrency(dayTotal), style: const TextStyle(color: Color(0xFFF08080), fontSize: 12)),
+                        title: Row(
+                          children: [
+                            Text(appLanguage == 'vi' ? 'Ngày ${dayKey.split('/')[0]}' : '${getOrdinalSuffix(int.parse(dayKey.split('/')[0]))}'),
+                            const Spacer(),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (dayTotal > 0)
+                                  Text(
+                                    formatAmountWithCurrency(dayTotal),
+                                    style: const TextStyle(color: Color(0xFFF08080), fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                if (dayTotalIncome > 0)
+                                  Text(
+                                    formatAmountWithCurrency(dayTotalIncome),
+                                    style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                if (dayTotalIncome == 0 && dayTotal == 0)
+                                   Text(formatAmountWithCurrency(0), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                              ],
+                            ),
+                          ],
+                        ),
                         children: itemsOnDay.map((entry) {
                           return ListTile(
                             leading: CircleAvatar(
@@ -793,6 +1085,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: CircleAvatar(
+                radius: 24,
+                backgroundImage: authService.currentUser?.photoURL != null
+                    ? NetworkImage(authService.currentUser!.photoURL!)
+                    : null,
+                child: authService.currentUser?.photoURL == null
+                    ? const Icon(Icons.person, size: 28)
+                    : null,
+              ),
+              title: Text(
+                authService.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Tài khoản' : 'Account'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              subtitle: Text(
+                authService.currentUser?.email ?? (appLanguage == 'vi' ? 'Chưa đăng nhập' : 'Not logged in'),
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Card(
             child: ListTile(
               leading: const Icon(Icons.language),
@@ -923,7 +1238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: const Icon(Icons.info_outline),
               title: Text(appLanguage == 'vi' ? 'Phiên bản' : 'Version'),
-              subtitle: const Text('1.0.0-vochicuongg'),
+              subtitle: const Text('1.0.0.adr-vochicuongg'),
               onTap: () {
                 showDialog(
                   context: context,
@@ -933,7 +1248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     content: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('1.0.0-vochicuongg', textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7))),
+                        Text('1.0.0.adr-vochicuongg', textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7))),
                         const SizedBox(height: 16),
                         Text(
                           appLanguage == 'vi'
@@ -975,6 +1290,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ),
+          // Account Section
+          if (authService.currentUser != null) ...[
+            const SizedBox(height: 24),
+            Text(
+              appLanguage == 'vi' ? 'Sao lưu & Khôi phục' : 'Backup & Restore',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodySmall?.color,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cloud_upload, color: Colors.blue),
+                title: Text(appLanguage == 'vi' ? 'Sao lưu dữ liệu' : 'Backup Data'),
+                subtitle: Text(appLanguage == 'vi' ? 'Lưu lên đám mây' : 'Save to cloud'),
+                onTap: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(appLanguage == 'vi' ? 'Đang sao lưu...' : 'Backing up...')),
+                  );
+                  // Get all SharedPreferences data
+                  final prefs = appPrefs ?? await SharedPreferences.getInstance();
+                  final keys = prefs.getKeys();
+                  final Map<String, dynamic> allData = {};
+                  for (final key in keys) {
+                    allData[key] = prefs.get(key);
+                  }
+                  await authService.backupData(allData);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(appLanguage == 'vi' ? '✓ Sao lưu thành công!' : '✓ Backup complete!')),
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cloud_download, color: Colors.green),
+                title: Text(appLanguage == 'vi' ? 'Khôi phục dữ liệu' : 'Restore Data'),
+                subtitle: Text(appLanguage == 'vi' ? 'Tải từ đám mây' : 'Download from cloud'),
+                onTap: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(appLanguage == 'vi' ? 'Đang khôi phục...' : 'Restoring...')),
+                  );
+                  final data = await authService.restoreData();
+                  if (data != null) {
+                    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+                    for (final entry in data.entries) {
+                      if (entry.value is String) {
+                        await prefs.setString(entry.key, entry.value);
+                      } else if (entry.value is int) {
+                        await prefs.setInt(entry.key, entry.value);
+                      } else if (entry.value is double) {
+                        await prefs.setDouble(entry.key, entry.value);
+                      } else if (entry.value is bool) {
+                        await prefs.setBool(entry.key, entry.value);
+                      }
+                    }
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(appLanguage == 'vi' ? '✓ Khôi phục thành công! Khởi động lại app để xem dữ liệu.' : '✓ Restored! Restart app to see data.')),
+                      );
+                    }
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(appLanguage == 'vi' ? 'Không có dữ liệu sao lưu' : 'No backup data found')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: Text(
+                  appLanguage == 'vi' ? 'Đăng xuất' : 'Sign Out',
+                  style: const TextStyle(color: Colors.red),
+                ),
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(appLanguage == 'vi' ? 'Đăng xuất?' : 'Sign Out?'),
+                      content: Text(
+                        appLanguage == 'vi'
+                            ? 'Bạn có chắc muốn đăng xuất?'
+                            : 'Are you sure you want to sign out?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(
+                            appLanguage == 'vi' ? 'Đăng xuất' : 'Sign Out',
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await authService.signOut();
+                    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+                    await prefs.setBool('skipped_login', false);
+                    if (mounted) {
+                      // Restart app to show login screen
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                        (route) => false,
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -5,7 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens.dart';
+import 'services/auth_service.dart';
+import 'services/transaction_service.dart'; // Cloud First: Firestore as single source of truth
+import 'screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // =================== GLOBAL STATE ===================
 SharedPreferences? appPrefs;
@@ -96,9 +102,13 @@ final ThemeData lightTheme = ThemeData(
   ),
 );
 
-void main() {
+void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  // Initialize Firebase
+  await Firebase.initializeApp();
+  
   SharedPreferences.getInstance().then((prefs) {
     appPrefs = prefs;
     // Load theme preference
@@ -109,8 +119,15 @@ void main() {
     }
   });
   
-  runApp(
-    ValueListenableBuilder<ThemeMode>(
+  runApp(const VFinanceRoot());
+}
+
+class VFinanceRoot extends StatelessWidget {
+  const VFinanceRoot({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, themeMode, child) {
         return MaterialApp(
@@ -119,11 +136,70 @@ void main() {
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: themeMode,
-          home: const VFinanceApp(),
+          home: const AuthWrapper(),
         );
       },
-    ),
-  );
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _showLogin = true;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    // Check if user has skipped login before
+    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+    final skippedLogin = prefs.getBool('skipped_login') ?? false;
+    
+    if (authService.currentUser != null || skippedLogin) {
+      _showLogin = false;
+    }
+    
+    setState(() => _initialized = true);
+    FlutterNativeSplash.remove();
+  }
+
+  void _onLoginSuccess() {
+    setState(() => _showLogin = false);
+  }
+
+  void _onSkip() async {
+    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+    await prefs.setBool('skipped_login', true);
+    setState(() => _showLogin = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_showLogin) {
+      return LoginScreen(
+        onLoginSuccess: _onLoginSuccess,
+        onSkip: _onSkip,
+      );
+    }
+
+    return const VFinanceApp();
+  }
 }
 
 ThemeMode _getThemeMode(String mode) {
@@ -228,14 +304,16 @@ String _formatUsdWithCommas(double amount) {
 
 // =================== MODEL ===================
 class ChiTieuItem {
+  final String? id;
   final int soTien;
   final DateTime thoiGian;
   final String? tenChiTieu;
 
-  ChiTieuItem({required this.soTien, required this.thoiGian, this.tenChiTieu});
+  ChiTieuItem({this.id, required this.soTien, required this.thoiGian, this.tenChiTieu});
 
-  ChiTieuItem copyWith({int? soTien, DateTime? thoiGian, String? tenChiTieu}) {
+  ChiTieuItem copyWith({String? id, int? soTien, DateTime? thoiGian, String? tenChiTieu}) {
     return ChiTieuItem(
+      id: id ?? this.id,
       soTien: soTien ?? this.soTien,
       thoiGian: thoiGian ?? this.thoiGian,
       tenChiTieu: tenChiTieu ?? this.tenChiTieu,
@@ -337,6 +415,8 @@ class _VFinanceAppState extends State<VFinanceApp> {
   int? _cachedTongHomNay;
   final Map<ChiTieuMuc, int> _cachedTongMuc = {};
   Timer? _dayCheckTimer;
+  StreamSubscription<List<TransactionDoc>>? _transactionsSub; // Cloud First: listen to Firestore
+  StreamSubscription? _authStateSub; // Listen to auth state changes
 
   static DateTime _asDate(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
@@ -346,17 +426,159 @@ class _VFinanceAppState extends State<VFinanceApp> {
     _cachedTongMuc.clear();
   }
 
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (appLanguage == 'vi') {
+      if (hour < 10) return 'Chào buổi sáng';
+      if (hour < 12) return 'Chào buổi trưa';
+      if (hour < 18) return 'Chào buổi chiều';
+      return 'Chào buổi tối';
+    } else {
+      if (hour < 10) return 'Good morning';
+      if (hour < 12) return 'Good afternoon';
+      if (hour < 18) return 'Good afternoon';
+      return 'Good evening';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _currentDay = _asDate(DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
     _dayCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkNewDay());
+    
+    // Cloud First: Subscribe to Firestore when user logs in
+    _setupFirestoreSubscription();
+    
+    // Listen to auth state changes to re-subscribe when user logs in/out
+    _authStateSub = authService.authStateChanges.listen((_) {
+      _setupFirestoreSubscription();
+    });
   }
+  
+  /// Setup or teardown Firestore subscription based on auth state
+  void _setupFirestoreSubscription() {
+    debugPrint('[Phone App] _setupFirestoreSubscription called, isLoggedIn=${transactionService.isLoggedIn}');
+    _transactionsSub?.cancel();
+    _transactionsSub = null;
+    
+    if (transactionService.isLoggedIn) {
+      debugPrint('[Phone App] Subscribing to transactionsStream...');
+      _transactionsSub = transactionService.transactionsStream.listen(_onTransactionsChanged);
+    }
+  }
+  
+  bool _firstSync = true;
+  
+  /// Cloud First: Called when Firestore transactions change (from any device)
+  void _onTransactionsChanged(List<TransactionDoc> transactions) async {
+    // AUTO-MIGRATION: Smart Merge
+    // If we have local data that is NOT in the cloud, upload it.
+    if (_firstSync) {
+      int localCount = 0;
+      for (var list in _chiTheoMuc.values) localCount += list.length;
+      _lichSuThang.forEach((_, days) => days.forEach((_, items) => localCount += items.length));
+      
+      if (localCount > 0) {
+        debugPrint('Checking compatibility of $localCount local items with ${transactions.length} cloud items...');
+        
+        final batch = FirebaseFirestore.instance.batch();
+        final userParams = authService.currentUser;
+        if (userParams == null) return;
+        
+        final baseRef = FirebaseFirestore.instance.collection('users').doc(userParams.uid).collection('transactions');
+        int itemsToUpload = 0;
+        
+        // Helper to check and add
+        void checkAndAdd(String muc, ChiTieuItem item) {
+           // Fuzzy match: Same amount, category, and time within 60 seconds
+           final exists = transactions.any((tx) => 
+              tx.soTien == item.soTien && 
+              tx.muc == muc && 
+              tx.thoiGian.difference(item.thoiGian).inSeconds.abs() <= 60
+           );
+           
+           if (!exists) {
+             final doc = baseRef.doc();
+             batch.set(doc, {
+               'muc': muc,
+               'soTien': item.soTien,
+               'thoiGian': Timestamp.fromDate(item.thoiGian),
+               'updatedAt': FieldValue.serverTimestamp(),
+             });
+             itemsToUpload++;
+           }
+        }
 
+        // 1. Current Month items
+        _chiTheoMuc.forEach((muc, items) {
+           for (var item in items) checkAndAdd(muc.name, item);
+        });
+
+        // 2. History items
+        _lichSuThang.forEach((_, days) {
+           days.forEach((_, entries) {
+              for (var entry in entries) checkAndAdd(entry.muc.name, entry.item);
+           });
+        });
+
+        if (itemsToUpload > 0) {
+          debugPrint('Smart Merge: Uploading $itemsToUpload missing local items to Cloud...');
+          try {
+            _firstSync = false; // Prevent loop
+            await batch.commit();
+            debugPrint('Smart Merge successful!');
+            return; // Stream will fire again with new merged data
+          } catch (e) {
+            debugPrint('Smart Merge failed: $e');
+          }
+        } else {
+           debugPrint('Smart Merge: All local items already in cloud.');
+        }
+      }
+    }
+    _firstSync = false;
+
+    // Standard Sync: Rebuild _chiTheoMuc from Firestore data
+    for (final muc in ChiTieuMuc.values) {
+      if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+      _chiTheoMuc[muc] = <ChiTieuItem>[];
+    }
+    _lichSuThang.clear();
+    
+    for (final tx in transactions) {
+      try {
+        final muc = ChiTieuMuc.values.firstWhere((m) => m.name == tx.muc);
+        final item = ChiTieuItem(
+          id: tx.id,
+          soTien: tx.soTien, 
+          thoiGian: tx.thoiGian,
+          tenChiTieu: tx.ghiChu,
+        );
+        
+        if (_sameDay(item.thoiGian, _currentDay)) {
+          _chiTheoMuc[muc]!.add(item);
+        } else {
+          // Add to history
+          final monthKey = getMonthKey(item.thoiGian);
+          final dayKey = dinhDangNgayDayDu(item.thoiGian);
+          _lichSuThang.putIfAbsent(monthKey, () => {});
+          _lichSuThang[monthKey]!.putIfAbsent(dayKey, () => []);
+          _lichSuThang[monthKey]![dayKey]!.add(HistoryEntry(muc: muc, item: item));
+        }
+      } catch (_) {}
+    }
+    
+    _invalidateCache();
+    if (mounted) setState(() {});
+  }
+  
   @override
   void dispose() {
     _dayCheckTimer?.cancel();
+    _transactionsSub?.cancel(); // Cloud First: cancel Firestore subscription
+    _authStateSub?.cancel(); // Cancel auth state listener
     super.dispose();
   }
 
@@ -426,11 +648,14 @@ class _VFinanceAppState extends State<VFinanceApp> {
     }
     
     _invalidateCache();
+    
     if (mounted) {
       setState(() => _isLoading = false);
       FlutterNativeSplash.remove();
     }
   }
+  
+  // Cloud First: Migration no longer needed - TransactionService handles all data
 
   Future<void> _saveData() async {
     final prefs = appPrefs ?? await SharedPreferences.getInstance();
@@ -456,6 +681,9 @@ class _VFinanceAppState extends State<VFinanceApp> {
     await prefs.setString('app_language', appLanguage);
     await prefs.setString('app_currency', appCurrency);
     await prefs.setDouble('exchange_rate', exchangeRate);
+    
+    // Cloud First: Transactions are now saved directly to Firestore via TransactionService
+    // _saveData only saves settings locally
   }
 
   void _checkNewDay() {
@@ -729,10 +957,15 @@ class _VFinanceAppState extends State<VFinanceApp> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    appLanguage == 'vi' ? 'Số dư còn lại' : 'Remaining Balance',
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Bạn' : 'User')}',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    appLanguage == 'vi' ? 'Số dư còn lại' : 'Remaining Balance',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
                   Text(
                     remaining >= 0 
                         ? formatAmountWithCurrency(remaining)
@@ -770,8 +1003,8 @@ class _VFinanceAppState extends State<VFinanceApp> {
             // Today's spending
             Text(
               appLanguage == 'vi'
-                  ? 'Chi tiêu hôm nay (${_currentDay.day}/${_currentDay.month})'
-                  : 'Today\'s Spending (${getMonthName(_currentDay.month)} ${getOrdinalSuffix(_currentDay.day)})',
+                  ? 'Tổng chi tiêu ${_currentDay.day}/${_currentDay.month}:'
+                  : 'Spending ${getMonthName(_currentDay.month)} ${getOrdinalSuffix(_currentDay.day)}:',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
