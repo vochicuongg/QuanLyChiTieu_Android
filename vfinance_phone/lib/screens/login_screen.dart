@@ -100,63 +100,66 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const Spacer(),
-                // Google Sign-In Button
-                if (_isLoading)
-                  const CircularProgressIndicator(color: Colors.white)
-                else
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _signInWithGoogle,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black87,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.network(
-                                'https://www.google.com/favicon.ico',
-                                width: 24,
-                                height: 24,
-                                errorBuilder: (context, error, stackTrace) => 
-                                    const Icon(Icons.g_mobiledata, size: 28),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                appLanguage == 'vi'
-                                    ? 'Đăng nhập với Google'
-                                    : 'Sign in with Google',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                // Google Sign-In Button (fixed height to prevent layout shift)
+                SizedBox(
+                  height: 120, // Fixed height for button area
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: _signInWithGoogle,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black87,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 4,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.network(
+                                      'https://www.google.com/favicon.ico',
+                                      width: 24,
+                                      height: 24,
+                                      errorBuilder: (context, error, stackTrace) => 
+                                          const Icon(Icons.g_mobiledata, size: 28),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      appLanguage == 'vi'
+                                          ? 'Đăng nhập với Google'
+                                          : 'Sign in with Google',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (widget.onSkip != null)
-                        TextButton(
-                          onPressed: widget.onSkip,
-                          child: Text(
-                            appLanguage == 'vi' ? 'Bỏ qua' : 'Skip',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            if (widget.onSkip != null)
+                              TextButton(
+                                onPressed: widget.onSkip,
+                                child: Text(
+                                  appLanguage == 'vi' ? 'Bỏ qua' : 'Skip',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
+                ),
                 const SizedBox(height: 32),
                 // Privacy note
                 Text(

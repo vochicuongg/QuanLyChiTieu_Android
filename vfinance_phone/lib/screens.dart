@@ -159,15 +159,13 @@ class _SoDuScreenState extends State<SoDuScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.money_rounded, color: Colors.white, size: 20),
+                   
+                        
                         Text(
                           appLanguage == 'vi' ? 'Tổng thu nhập' : 'Total Income',
                           style: const TextStyle(color: Colors.white),
                         ),
-                      ],
-                    ),
+                      
                     const SizedBox(height: 12),
                     Text(
                       formatAmountWithCurrency(tongThuNhap),

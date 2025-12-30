@@ -821,6 +821,44 @@ class _VFinanceAppState extends State<VFinanceApp> {
     }
     return totalExpenses;
   }
+  
+  /// All-time income (sum of ALL soDu entries across ALL history)
+  int get _allTimeIncome {
+    // Today's income
+    int total = (_chiTheoMuc[ChiTieuMuc.soDu] ?? <ChiTieuItem>[])
+        .where((item) => _sameDay(item.thoiGian, _currentDay))
+        .fold(0, (sum, item) => sum + item.soTien);
+    
+    // All history income
+    for (final monthData in _lichSuThang.values) {
+      for (final dayData in monthData.values) {
+        for (final entry in dayData) {
+          if (entry.muc == ChiTieuMuc.soDu) {
+            total += entry.item.soTien;
+          }
+        }
+      }
+    }
+    return total;
+  }
+  
+  /// All-time expenses (sum of ALL expense entries across ALL history)
+  int get _allTimeExpenses {
+    // Today's expenses
+    int total = _tongHomNay;
+    
+    // All history expenses
+    for (final monthData in _lichSuThang.values) {
+      for (final dayData in monthData.values) {
+        for (final entry in dayData) {
+          if (entry.muc != ChiTieuMuc.soDu) {
+            total += entry.item.soTien;
+          }
+        }
+      }
+    }
+    return total;
+  }
 
   Future<void> _moMuc(ChiTieuMuc muc) async {
     if (muc == ChiTieuMuc.soDu) {
@@ -929,7 +967,9 @@ class _VFinanceAppState extends State<VFinanceApp> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final remaining = _monthlyIncome - _monthlyExpenses;
+
+    // Balance = All-time income - All-time expenses (persists across months/years)
+    final remaining = _allTimeIncome - _allTimeExpenses;
     final categories = ChiTieuMuc.values.where((m) => 
       m != ChiTieuMuc.lichSu && m != ChiTieuMuc.caiDat).toList();
 
