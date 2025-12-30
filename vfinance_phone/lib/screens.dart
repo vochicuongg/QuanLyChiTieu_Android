@@ -4,6 +4,7 @@ import 'main.dart';
 import 'services/auth_service.dart';
 import 'services/transaction_service.dart'; // Cloud First
 import 'package:firebase_core/firebase_core.dart';
+import 'screens/login_screen.dart';
 
 // =================== INCOME/BALANCE SCREEN ===================
 class SoDuScreen extends StatefulWidget {
@@ -84,10 +85,10 @@ class _SoDuScreenState extends State<SoDuScreen> {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Text(appLanguage == 'vi' 
-          ? "Bạn có muốn xóa thu nhập '${formatAmountWithCurrency(item.soTien)}' này không?"
-          : "Do you want to delete this income '${formatAmountWithCurrency(item.soTien)}'?"),
+          ? "Bạn có muốn xóa thu nhập ${formatAmountWithCurrency(item.soTien)} này không?"
+          : "Do you want to delete this income ${formatAmountWithCurrency(item.soTien)}?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -158,8 +159,16 @@ class _SoDuScreenState extends State<SoDuScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tổng thu nhập', style: TextStyle(color: Colors.white70)),
-                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.money_rounded, color: Colors.white, size: 20),
+                        Text(
+                          appLanguage == 'vi' ? 'Tổng thu nhập' : 'Total Income',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     Text(
                       formatAmountWithCurrency(tongThuNhap),
                       style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
@@ -170,14 +179,17 @@ class _SoDuScreenState extends State<SoDuScreen> {
               ),
               
               const SizedBox(height: 24),
-              const Text('Danh sách thu nhập', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                appLanguage == 'vi' ? 'Danh sách thu nhập' : 'Income list',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               
               if (danhSachThuNhap.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text('Chưa có thu nhập nào', style: TextStyle(color: Colors.white54)),
+                    child: Text(appLanguage == 'vi' ? 'Chưa có thu nhập nào' : 'No income yet', 
+                    style: TextStyle(color: Colors.white54)),
                   ),
                 )
               else
@@ -192,7 +204,7 @@ class _SoDuScreenState extends State<SoDuScreen> {
                       child: ListTile(
                         leading: const CircleAvatar(
                           backgroundColor: Color(0xFF4CAF93),
-                          child: Icon(Icons.add_rounded, color: Colors.white),
+                          child: Icon(Icons.add_rounded, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         title: Text(formatAmountWithCurrency(item.soTien)),
                         subtitle: Text(dinhDangGio(item.thoiGian)),
@@ -296,7 +308,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Text(appLanguage == 'vi' 
           ? "Bạn có muốn xóa chi tiêu ${formatAmountWithCurrency(item.soTien)} này không?"
           : "Do you want to delete this expense ${formatAmountWithCurrency(item.soTien)}?"),
@@ -369,7 +381,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Tổng ${widget.muc.ten}', style: const TextStyle(color: Colors.white70)),
+                    Text(appLanguage == 'vi' ? 'Tổng chi phí ${widget.muc.ten}' : 'Total cost ${widget.muc.ten}', style: const TextStyle(color: Colors.white)),
                     const SizedBox(height: 8),
                     Text(
                       formatAmountWithCurrency(tongChi),
@@ -533,7 +545,7 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm'),
+        title: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Text(appLanguage == 'vi' 
           ? "Bạn có muốn xóa chi tiêu '${formatAmountWithCurrency(item.soTien)}' này không?"
           : "Do you want to delete this expense '${formatAmountWithCurrency(item.soTien)}'?"),
@@ -606,7 +618,8 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tổng chi khác', style: TextStyle(color: Colors.white70)),
+                    Text(appLanguage == 'vi' ? 'Tổng chi khác' : 'Total Other Expenses', 
+                    style: TextStyle(color: Colors.white70)),
                     const SizedBox(height: 8),
                     Text(
                       formatAmountWithCurrency(tongChi),
@@ -620,10 +633,11 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
               const SizedBox(height: 24),
               
               if (danhSachChi.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text('Chưa có chi tiêu nào', style: TextStyle(color: Colors.white54)),
+                    child: Text(appLanguage == 'vi' ? 'Chưa có chi tiêu nào' : 'No expenses yet', 
+                    style: TextStyle(color: Colors.white54)),
                   ),
                 )
               else
@@ -640,8 +654,13 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                           backgroundColor: Colors.grey,
                           child: Icon(Icons.money_rounded, color: Colors.white, size: 20),
                         ),
-                        title: Text(item.tenChiTieu ?? 'Chi tiêu', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                        subtitle: Text('${formatAmountWithCurrency(item.soTien)} • ${dinhDangGio(item.thoiGian)}'),
+                        title: Text(item.tenChiTieu ?? 'Chi tiêu', style: TextStyle(backgroundColor: Theme.of(context).brightness == Brightness.dark
+                                                                                    ? Color(0xFF2D2D3F) 
+                                                                                    : Colors.white, fontWeight: FontWeight.bold)),
+                        subtitle: Text('${formatAmountWithCurrency(item.soTien)} • ${dinhDangGio(item.thoiGian)}',
+                        style: TextStyle(backgroundColor: Theme.of(context).brightness == Brightness.dark
+                                                                                    ? Color(0xFF2D2D3F) 
+                                                                                    : Colors.white)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -729,7 +748,7 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhập số tiền')),
+      appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Nhập số tiền' : 'Enter amount')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -765,7 +784,8 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
                   backgroundColor: const Color(0xFF6C5CE7),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Xác nhận', style: TextStyle(fontSize: 18, color: Colors.white)),
+                child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', 
+                style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -845,7 +865,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Thêm chi tiêu khác')),
+      appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Thêm chi tiêu khác' : 'Add Other Expense')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -854,7 +874,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
               controller: _tenController,
               autofocus: true,
               decoration: InputDecoration(
-                labelText: 'Tên chi tiêu',
+                labelText: appLanguage == 'vi' ? 'Tên chi tiêu' : 'Expense Name',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -869,7 +889,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
                   ? const TextInputType.numberWithOptions(decimal: true)
                   : TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Số tiền',
+                  labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
                   suffixText: appCurrency == 'đ' ? 'đ' : null,
                   prefixText: appCurrency == '\$' ? '\$' : null,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -889,7 +909,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
                   backgroundColor: const Color(0xFF6C5CE7),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Thêm', style: TextStyle(fontSize: 18, color: Colors.white)),
+                child: Text(appLanguage == 'vi' ? 'Thêm' : 'Add', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -1070,8 +1090,15 @@ class _LichSuScreenState extends State<LichSuScreen> {
 // =================== SETTINGS SCREEN ===================
 class SettingsScreen extends StatefulWidget {
   final VoidCallback? onLanguageChanged;
+  final Map<ChiTieuMuc, List<ChiTieuItem>> chiTheoMuc;
+  final Map<String, Map<String, List<HistoryEntry>>> lichSuThang;
 
-  const SettingsScreen({super.key, this.onLanguageChanged});
+  const SettingsScreen({
+    super.key, 
+    this.onLanguageChanged,
+    required this.chiTheoMuc,
+    required this.lichSuThang,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -1098,7 +1125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     : null,
               ),
               title: Text(
-                authService.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Tài khoản' : 'Account'),
+                authService.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'Guest'),
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               subtitle: Text(
@@ -1111,7 +1138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.language),
-              title: Text(appLanguage == 'vi' ? 'Ngôn ngữ' : 'Language'),
+              title: Text(appLanguage == 'vi' ? 'Ngôn ngữ' : 'Language', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
                 appLanguageMode == 'auto'
                     ? (appLanguage == 'vi' ? '📱 Tự động (Tiếng Việt)' : '📱 Auto (English)')
@@ -1122,7 +1149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final newLang = await showDialog<String>(
                   context: context,
                   builder: (context) => SimpleDialog(
-                    title: Text(appLanguage == 'vi' ? 'Chọn ngôn ngữ' : 'Select Language'),
+                    title: Text(appLanguage == 'vi' ? 'Chọn ngôn ngữ' : 'Select Language', style: const TextStyle(fontWeight: FontWeight.bold)),
                     children: [
                       SimpleDialogOption(
                         onPressed: () => Navigator.pop(context, 'vi'),
@@ -1160,22 +1187,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.attach_money),
-              title: Text(appLanguage == 'vi' ? 'Đơn vị tiền tệ' : 'Currency'),
+              title: Text(appLanguage == 'vi' ? 'Đơn vị tiền tệ' : 'Currency', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(appCurrency == 'đ' ? 'VND (đ)' : 'USD (\$)'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
                 final newCurrency = await showDialog<String>(
                   context: context,
                   builder: (context) => SimpleDialog(
-                    title: const Text('Chọn đơn vị tiền tệ'),
+                    title: Text(appLanguage == 'vi' ? 'Chọn đơn vị tiền tệ' : 'Select Currency', style: const TextStyle(fontWeight: FontWeight.bold)),
                     children: [
                       SimpleDialogOption(
                         onPressed: () => Navigator.pop(context, 'đ'),
-                        child: const Text('VND (đ)'),
+                        child: Text('VND (đ)'),
                       ),
                       SimpleDialogOption(
                         onPressed: () => Navigator.pop(context, '\$'),
-                        child: const Text('USD (\$)'),
+                        child: Text('USD (\$)'),
                       ),
                     ],
                   ),
@@ -1195,7 +1222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.brightness_6),
-              title: Text(appLanguage == 'vi' ? 'Giao diện' : 'Theme'),
+              title: Text(appLanguage == 'vi' ? 'Giao diện' : 'Theme', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
                 appThemeMode == 'light' 
                     ? (appLanguage == 'vi' ? '🌕 Sáng' : '🌕 Light')
@@ -1208,7 +1235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final newTheme = await showDialog<String>(
                   context: context,
                   builder: (context) => SimpleDialog(
-                    title: Text(appLanguage == 'vi' ? 'Chọn giao diện' : 'Select Theme'),
+                    title: Text(appLanguage == 'vi' ? 'Chọn giao diện' : 'Select Theme', style: const TextStyle(fontWeight: FontWeight.bold)),
                     children: [
                       SimpleDialogOption(
                         onPressed: () => Navigator.pop(context, 'light'),
@@ -1237,7 +1264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.info_outline),
-              title: Text(appLanguage == 'vi' ? 'Phiên bản' : 'Version'),
+              title: Text(appLanguage == 'vi' ? 'Phiên bản' : 'Version', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('1.0.0.adr-vochicuongg'),
               onTap: () {
                 showDialog(
@@ -1274,7 +1301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.qr_code),
-              title: Text(appLanguage == 'vi' ? 'Mã QR liên hệ' : 'Contact QR Code'),
+              title: Text(appLanguage == 'vi' ? 'Mã QR liên hệ' : 'Contact QR Code', style: const TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.push(
                   context,
@@ -1305,7 +1332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.cloud_upload, color: Colors.blue),
-                title: Text(appLanguage == 'vi' ? 'Sao lưu dữ liệu' : 'Backup Data'),
+                title: Text(appLanguage == 'vi' ? 'Sao lưu dữ liệu' : 'Backup Data', style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(appLanguage == 'vi' ? 'Lưu lên đám mây' : 'Save to cloud'),
                 onTap: () async {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1321,7 +1348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await authService.backupData(allData);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(appLanguage == 'vi' ? '✓ Sao lưu thành công!' : '✓ Backup complete!')),
+                      SnackBar(content: Text(appLanguage == 'vi' ? ' Sao lưu thành công!' : 'Backup complete!')),
                     );
                   }
                 },
@@ -1331,7 +1358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.cloud_download, color: Colors.green),
-                title: Text(appLanguage == 'vi' ? 'Khôi phục dữ liệu' : 'Restore Data'),
+                title: Text(appLanguage == 'vi' ? 'Khôi phục dữ liệu' : 'Restore Data', style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(appLanguage == 'vi' ? 'Tải từ đám mây' : 'Download from cloud'),
                 onTap: () async {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1353,7 +1380,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(appLanguage == 'vi' ? '✓ Khôi phục thành công! Khởi động lại app để xem dữ liệu.' : '✓ Restored! Restart app to see data.')),
+                        SnackBar(content: Text(appLanguage == 'vi' ? 'Khôi phục thành công! Khởi động lại app để xem dữ liệu.' : 'Restored! Restart app to see data.')),
                       );
                     }
                   } else {
@@ -1371,18 +1398,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: Text(
-                  appLanguage == 'vi' ? 'Đăng xuất' : 'Sign Out',
-                  style: const TextStyle(color: Colors.red),
+                  appLanguage == 'vi' ? 'Đăng xuất' : 'Log Out',
+                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 ),
                 onTap: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: Text(appLanguage == 'vi' ? 'Đăng xuất?' : 'Sign Out?'),
+                      title: Text(appLanguage == 'vi' ? 'Đăng xuất?' : 'Log Out?', style: const TextStyle(fontWeight: FontWeight.bold)),
                       content: Text(
                         appLanguage == 'vi'
-                            ? 'Bạn có chắc muốn đăng xuất?'
-                            : 'Are you sure you want to sign out?',
+                            ? 'Bạn có chắc muốn đăng xuất không?'
+                            : 'Are you sure you want to log out?',
                       ),
                       actions: [
                         TextButton(
@@ -1392,7 +1419,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         TextButton(
                           onPressed: () => Navigator.pop(context, true),
                           child: Text(
-                            appLanguage == 'vi' ? 'Đăng xuất' : 'Sign Out',
+                            appLanguage == 'vi' ? 'Đăng xuất' : 'Log Out',
                             style: const TextStyle(color: Colors.red),
                           ),
                         ),
@@ -1414,6 +1441,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
+          ] else ...[
+             const SizedBox(height: 24),
+             Card(
+               child: ListTile(
+                 leading: const Icon(Icons.login, color: Colors.blue),
+                 title: Text(
+                   appLanguage == 'vi' ? 'Đăng nhập' : 'Sign In',
+                   style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                 ),
+                 subtitle: Text(
+                   appLanguage == 'vi' ? 'Đăng nhập để đồng bộ dữ liệu' : 'Sign in to sync data',
+                 ),
+                 onTap: () {
+                   // Capture Guest data before login for migration
+                   final dataToMigrate = <Map<String, dynamic>>[];
+                   final seenItems = <String>{}; // Track unique items to prevent duplicates
+                   
+                   // Helper to create unique key for an item
+                   String itemKey(String muc, int soTien, String thoiGian) => '$muc|$soTien|$thoiGian';
+                   
+                   // Capture today's items
+                   widget.chiTheoMuc.forEach((muc, items) {
+                     for (var item in items) {
+                       final key = itemKey(muc.name, item.soTien, item.thoiGian.toIso8601String());
+                       if (!seenItems.contains(key)) {
+                         seenItems.add(key);
+                         dataToMigrate.add({
+                           'muc': muc.name,
+                           'soTien': item.soTien,
+                           'thoiGian': item.thoiGian.toIso8601String(),
+                           'ghiChu': item.tenChiTieu,
+                         });
+                       }
+                     }
+                   });
+                   
+                   // Capture history items (skip if already seen)
+                   widget.lichSuThang.forEach((_, days) {
+                     days.forEach((_, entries) {
+                       for (var entry in entries) {
+                         final key = itemKey(entry.muc.name, entry.item.soTien, entry.item.thoiGian.toIso8601String());
+                         if (!seenItems.contains(key)) {
+                           seenItems.add(key);
+                           dataToMigrate.add({
+                             'muc': entry.muc.name,
+                             'soTien': entry.item.soTien,
+                             'thoiGian': entry.item.thoiGian.toIso8601String(),
+                             'ghiChu': entry.item.tenChiTieu,
+                           });
+                         }
+                       }
+                     });
+                   });
+                   
+                   if (dataToMigrate.isNotEmpty) {
+                     pendingMigrationData = dataToMigrate;
+                     debugPrint('[SettingsScreen] Captured ${dataToMigrate.length} unique Guest items for migration.');
+                   }
+                   
+                   Navigator.push(
+                     context,
+                     MaterialPageRoute(
+                       builder: (_) => LoginScreen(
+                         onLoginSuccess: () {
+                           Navigator.pop(context);
+                           // Refresh state to show user info
+                           if (mounted) setState(() {});
+                         },
+                         onSkip: () {
+                           // User skipped login, clear pending migration data
+                           pendingMigrationData = null;
+                           Navigator.pop(context);
+                         },
+                       ),
+                     ),
+                   );
+                 },
+               ),
+             ),
           ],
         ],
       ),

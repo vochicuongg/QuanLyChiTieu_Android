@@ -29,6 +29,10 @@ String appThemeMode = 'dark';
 const String keyThemeMode = 'theme_mode';
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
+/// Holds Guest data captured before login for migration to new account.
+/// Set by SettingsScreen before navigating to LoginScreen, cleared after upload.
+List<Map<String, dynamic>>? pendingMigrationData;
+
 final RegExp _numberFormatRegex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
 
 // =================== COLOR SCHEME ===================
@@ -429,15 +433,17 @@ class _VFinanceAppState extends State<VFinanceApp> {
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (appLanguage == 'vi') {
-      if (hour < 10) return 'Chào buổi sáng';
-      if (hour < 12) return 'Chào buổi trưa';
-      if (hour < 18) return 'Chào buổi chiều';
-      return 'Chào buổi tối';
+      if (hour >=5 && hour < 11) return '🌞 Buổi sáng vui vẻ nho';
+      if (hour >= 11 && hour < 13) return '☀️ Nghỉ trưa thư giãn nhen';
+      if (hour >= 13 && hour < 18) return '⛅ Buổi chiều mát mẻ nha';
+      if (hour >= 18 && hour < 22) return '🌙 Buổi tối ấm áp nhé';
+      return '🌠 Nghỉ ngơi sớm đi nè';
     } else {
-      if (hour < 10) return 'Good morning';
-      if (hour < 12) return 'Good afternoon';
-      if (hour < 18) return 'Good afternoon';
-      return 'Good evening';
+      if (hour >= 5 && hour < 11) return '🌞 Have a great morning';
+      if (hour >= 11 && hour < 13) return '☀️ Have a relaxing lunch break';
+      if (hour >= 13 && hour < 18) return '⛅ Have a lovely afternoon';
+      if (hour >=18 && hour < 22) return '🌙 Have a cozy evening';
+      return '🌠 Have an early night';
     }
   }
 
@@ -466,6 +472,30 @@ class _VFinanceAppState extends State<VFinanceApp> {
     if (transactionService.isLoggedIn) {
       debugPrint('[Phone App] Subscribing to transactionsStream...');
       _transactionsSub = transactionService.transactionsStream.listen(_onTransactionsChanged);
+    } else {
+      // User logged out: Clear all data to prevent leakage
+      debugPrint('[Phone App] User logged out. Clearing local data...');
+      _firstSync = true;
+      
+      // Clear persistence cache immediately to prevent Smart Merge from uploading old data
+      final prefs = appPrefs; 
+      if (prefs != null) {
+        prefs.remove(_keyChiTheoMuc);
+        prefs.remove(_keyLichSuThang);
+      } else {
+        SharedPreferences.getInstance().then((p) {
+           p.remove(_keyChiTheoMuc);
+           p.remove(_keyLichSuThang);
+        });
+      }
+
+      for (final muc in ChiTieuMuc.values) {
+        if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+        _chiTheoMuc[muc] = <ChiTieuItem>[];
+      }
+      _lichSuThang.clear();
+      _invalidateCache();
+      if (mounted) setState(() {});
     }
   }
   
@@ -473,72 +503,59 @@ class _VFinanceAppState extends State<VFinanceApp> {
   
   /// Cloud First: Called when Firestore transactions change (from any device)
   void _onTransactionsChanged(List<TransactionDoc> transactions) async {
-    // AUTO-MIGRATION: Smart Merge
-    // If we have local data that is NOT in the cloud, upload it.
+    // On first sync after login, CLEAR local data to prevent any duplication.
+    // Then upload any pending migration data captured before login.
     if (_firstSync) {
-      int localCount = 0;
-      for (var list in _chiTheoMuc.values) localCount += list.length;
-      _lichSuThang.forEach((_, days) => days.forEach((_, items) => localCount += items.length));
+      _firstSync = false;
+      debugPrint('[Phone App] First sync after login. Clearing local data to start fresh from cloud...');
       
-      if (localCount > 0) {
-        debugPrint('Checking compatibility of $localCount local items with ${transactions.length} cloud items...');
-        
-        final batch = FirebaseFirestore.instance.batch();
-        final userParams = authService.currentUser;
-        if (userParams == null) return;
-        
-        final baseRef = FirebaseFirestore.instance.collection('users').doc(userParams.uid).collection('transactions');
-        int itemsToUpload = 0;
-        
-        // Helper to check and add
-        void checkAndAdd(String muc, ChiTieuItem item) {
-           // Fuzzy match: Same amount, category, and time within 60 seconds
-           final exists = transactions.any((tx) => 
-              tx.soTien == item.soTien && 
-              tx.muc == muc && 
-              tx.thoiGian.difference(item.thoiGian).inSeconds.abs() <= 60
-           );
-           
-           if (!exists) {
-             final doc = baseRef.doc();
-             batch.set(doc, {
-               'muc': muc,
-               'soTien': item.soTien,
-               'thoiGian': Timestamp.fromDate(item.thoiGian),
-               'updatedAt': FieldValue.serverTimestamp(),
-             });
-             itemsToUpload++;
-           }
-        }
-
-        // 1. Current Month items
-        _chiTheoMuc.forEach((muc, items) {
-           for (var item in items) checkAndAdd(muc.name, item);
-        });
-
-        // 2. History items
-        _lichSuThang.forEach((_, days) {
-           days.forEach((_, entries) {
-              for (var entry in entries) checkAndAdd(entry.muc.name, entry.item);
-           });
-        });
-
-        if (itemsToUpload > 0) {
-          debugPrint('Smart Merge: Uploading $itemsToUpload missing local items to Cloud...');
-          try {
-            _firstSync = false; // Prevent loop
+      // Clear SharedPreferences
+      final prefs = appPrefs; 
+      if (prefs != null) {
+        await prefs.remove(_keyChiTheoMuc);
+        await prefs.remove(_keyLichSuThang);
+      } else {
+        final p = await SharedPreferences.getInstance();
+        await p.remove(_keyChiTheoMuc);
+        await p.remove(_keyLichSuThang);
+      }
+      
+      // Clear in-memory data
+      for (final muc in ChiTieuMuc.values) {
+        if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+        _chiTheoMuc[muc] = <ChiTieuItem>[];
+      }
+      _lichSuThang.clear();
+      
+      // Upload pending Guest migration data (if any)
+      if (pendingMigrationData != null && pendingMigrationData!.isNotEmpty) {
+        debugPrint('[Phone App] Uploading ${pendingMigrationData!.length} Guest items to new account...');
+        try {
+          final batch = FirebaseFirestore.instance.batch();
+          final uid = authService.currentUser?.uid;
+          if (uid != null) {
+            final baseRef = FirebaseFirestore.instance.collection('users').doc(uid).collection('transactions');
+            for (final item in pendingMigrationData!) {
+              final doc = baseRef.doc();
+              batch.set(doc, {
+                'muc': item['muc'],
+                'soTien': item['soTien'],
+                'thoiGian': Timestamp.fromDate(DateTime.parse(item['thoiGian'])),
+                'ghiChu': item['ghiChu'],
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+            }
             await batch.commit();
-            debugPrint('Smart Merge successful!');
-            return; // Stream will fire again with new merged data
-          } catch (e) {
-            debugPrint('Smart Merge failed: $e');
+            debugPrint('[Phone App] Guest data migration successful!');
           }
-        } else {
-           debugPrint('Smart Merge: All local items already in cloud.');
+        } catch (e) {
+          debugPrint('[Phone App] Guest data migration failed: $e');
+        } finally {
+          pendingMigrationData = null; // Clear to prevent re-upload
         }
+        return; // Stream will fire again with uploaded data
       }
     }
-    _firstSync = false;
 
     // Standard Sync: Rebuild _chiTheoMuc from Firestore data
     for (final muc in ChiTieuMuc.values) {
@@ -861,6 +878,8 @@ class _VFinanceAppState extends State<VFinanceApp> {
                 _saveData();
               }
             },
+            chiTheoMuc: _chiTheoMuc,
+            lichSuThang: _lichSuThang,
           ),
         ),
       );
@@ -957,13 +976,13 @@ class _VFinanceAppState extends State<VFinanceApp> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Bạn' : 'User')}',
+                    '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'User')}.',
                     style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     appLanguage == 'vi' ? 'Số dư còn lại' : 'Remaining Balance',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                   const SizedBox(height: 4),
                   Text(

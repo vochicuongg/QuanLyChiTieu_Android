@@ -33,10 +33,10 @@ android {
 
     defaultConfig {
         applicationId = "com.chiscung.vfinance_phone"
-        minSdk = flutter.minSdkVersion
+        minSdk = 28
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionName = "1.0.0.adr-vochicuongg"
     }
 
     signingConfigs {
