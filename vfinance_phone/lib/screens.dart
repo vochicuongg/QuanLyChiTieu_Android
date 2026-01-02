@@ -40,43 +40,81 @@ class _SoDuScreenState extends State<SoDuScreen> {
   }
 
   Future<void> themThuNhap() async {
-    final soTien = await Navigator.push<int>(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
-      MaterialPageRoute(builder: (_) => const NhapSoTienScreen()),
+      MaterialPageRoute(builder: (_) => const NhapSoDuScreen()),
     );
 
-    if (soTien != null && soTien > 0) {
-      final now = DateTime.now();
-      setState(() {
-        danhSachThuNhap.add(ChiTieuItem(soTien: soTien, thoiGian: now));
-        widget.onDataChanged?.call(danhSachThuNhap);
-      });
+    if (result != null) {
+      final soTien = result['soTien'] as int;
+      final ten = result['ten'] as String?;
       
-      // Cloud First: Save to Firestore
-      if (transactionService.isLoggedIn) {
-        transactionService.add(
-          muc: ChiTieuMuc.soDu.name,
-          soTien: soTien,
-          thoiGian: now,
-        );
+      if (soTien > 0) {
+        final now = DateTime.now();
+        final newItem = ChiTieuItem(soTien: soTien, thoiGian: now, tenChiTieu: ten);
+        
+        // Optimistic UI update for immediate feedback
+        setState(() {
+          danhSachThuNhap.add(newItem);
+        });
+        
+        // Cloud First: When logged in, save to Firestore (main screen listens to stream)
+        // When guest mode, also call the callback to update main screen
+        if (transactionService.isLoggedIn) {
+          transactionService.add(
+            muc: ChiTieuMuc.soDu.name,
+            soTien: soTien,
+            thoiGian: now,
+            ghiChu: ten,
+          );
+        } else {
+          widget.onDataChanged?.call(danhSachThuNhap);
+        }
       }
     }
   }
 
   Future<void> chinhSuaThuNhap(int index) async {
     if (dangChonXoa) return;
-    final soTienMoi = await Navigator.push<int>(
+    final item = danhSachThuNhap[index];
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
-        builder: (_) => NhapSoTienScreen(soTienBanDau: danhSachThuNhap[index].soTien),
+        builder: (_) => NhapSoDuScreen(
+          tenBanDau: item.tenChiTieu,
+          soTienBanDau: item.soTien,
+        ),
       ),
     );
 
-    if (soTienMoi != null && soTienMoi > 0) {
-      setState(() {
-        danhSachThuNhap[index] = danhSachThuNhap[index].copyWith(soTien: soTienMoi, thoiGian: DateTime.now());
-        widget.onDataChanged?.call(danhSachThuNhap);
-      });
+    if (result != null) {
+      final soTienMoi = result['soTien'] as int;
+      final tenMoi = result['ten'] as String?;
+      
+      if (soTienMoi > 0) {
+        final now = DateTime.now();
+        final updatedItem = item.copyWith(soTien: soTienMoi, thoiGian: now, tenChiTieu: tenMoi);
+        
+        // Optimistic UI update for immediate feedback
+        setState(() {
+          danhSachThuNhap[index] = updatedItem;
+        });
+        
+        // Cloud First: When logged in, update Firestore (main screen listens to stream)
+        // When guest mode, use local callback
+        if (transactionService.isLoggedIn) {
+          if (item.id != null) {
+            transactionService.update(
+              item.id!,
+              soTien: soTienMoi,
+              thoiGian: now,
+              ghiChu: tenMoi,
+            );
+          }
+        } else {
+          widget.onDataChanged?.call(danhSachThuNhap);
+        }
+      }
     }
   }
 
@@ -104,14 +142,19 @@ class _SoDuScreenState extends State<SoDuScreen> {
 
     if (shouldDelete != true) return;
 
+    // Optimistic UI update for immediate feedback
     setState(() {
       danhSachThuNhap.removeAt(index);
-      widget.onDataChanged?.call(danhSachThuNhap);
     });
     
-    // Cloud First: Delete from Firestore
-    if (item.id != null) {
-      transactionService.delete(item.id!);
+    // Cloud First: When logged in, delete from Firestore (main screen listens to stream)
+    // When guest mode, use local callback
+    if (transactionService.isLoggedIn) {
+      if (item.id != null) {
+        transactionService.delete(item.id!);
+      }
+    } else {
+      widget.onDataChanged?.call(danhSachThuNhap);
     }
   }
 
@@ -121,7 +164,10 @@ class _SoDuScreenState extends State<SoDuScreen> {
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) widget.onDataChanged?.call(danhSachThuNhap);
+        // Only use callback for guest mode; logged in users get data from Firestore stream
+        if (didPop && !transactionService.isLoggedIn) {
+          widget.onDataChanged?.call(danhSachThuNhap);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -129,7 +175,10 @@ class _SoDuScreenState extends State<SoDuScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              widget.onDataChanged?.call(danhSachThuNhap);
+              // Only use callback for guest mode
+              if (!transactionService.isLoggedIn) {
+                widget.onDataChanged?.call(danhSachThuNhap);
+              }
               Navigator.pop(context, danhSachThuNhap);
             },
           ),
@@ -204,8 +253,13 @@ class _SoDuScreenState extends State<SoDuScreen> {
                           backgroundColor: Color(0xFF4CAF93),
                           child: Icon(Icons.add_rounded, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        title: Text(formatAmountWithCurrency(item.soTien)),
-                        subtitle: Text(dinhDangGio(item.thoiGian)),
+                        title: Text(
+                          item.tenChiTieu ?? formatAmountWithCurrency(item.soTien),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: item.tenChiTieu != null 
+                            ? Text('${formatAmountWithCurrency(item.soTien)} • ${dinhDangGio(item.thoiGian)}')
+                            : Text(dinhDangGio(item.thoiGian)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -269,18 +323,22 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
 
     if (soTien != null && soTien > 0) {
       final now = DateTime.now();
+      final newItem = ChiTieuItem(soTien: soTien, thoiGian: now);
+      
+      // Optimistic UI update for immediate feedback
       setState(() {
-        danhSachChi.add(ChiTieuItem(soTien: soTien, thoiGian: now));
-        widget.onDataChanged?.call(danhSachChi);
+        danhSachChi.add(newItem);
       });
       
-      // Cloud First: Sync to Firestore
+      // Cloud First: When logged in, save to Firestore (main screen listens to stream)
       if (transactionService.isLoggedIn) {
         transactionService.add(
           muc: widget.muc.name,
           soTien: soTien,
           thoiGian: now,
         );
+      } else {
+        widget.onDataChanged?.call(danhSachChi);
       }
     }
   }
@@ -294,10 +352,28 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     );
 
     if (soTienMoi != null && soTienMoi > 0) {
+      final item = danhSachChi[index];
+      final now = DateTime.now();
+      final updatedItem = item.copyWith(soTien: soTienMoi, thoiGian: now);
+      
+      // Optimistic UI update for immediate feedback
       setState(() {
-        danhSachChi[index] = danhSachChi[index].copyWith(soTien: soTienMoi, thoiGian: DateTime.now());
-        widget.onDataChanged?.call(danhSachChi);
+        danhSachChi[index] = updatedItem;
       });
+      
+      // Cloud First: When logged in, update Firestore (main screen listens to stream)
+      // When guest mode, use local callback
+      if (transactionService.isLoggedIn) {
+        if (item.id != null) {
+          transactionService.update(
+            item.id!,
+            soTien: soTienMoi,
+            thoiGian: now,
+          );
+        }
+      } else {
+        widget.onDataChanged?.call(danhSachChi);
+      }
     }
   }
 
@@ -325,23 +401,30 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
 
     if (shouldDelete != true) return;
 
-    // Cloud First: Delete from Firestore
-    if (item.id != null) {
-      transactionService.delete(item.id!);
-    }
-    
-    // Optimistic UI update
+    // Optimistic UI update for immediate feedback
     setState(() {
       danhSachChi.removeAt(index);
-      widget.onDataChanged?.call(danhSachChi);
     });
+    
+    // Cloud First: When logged in, delete from Firestore (main screen listens to stream)
+    // When guest mode, use local callback
+    if (transactionService.isLoggedIn) {
+      if (item.id != null) {
+        transactionService.delete(item.id!);
+      }
+    } else {
+      widget.onDataChanged?.call(danhSachChi);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) widget.onDataChanged?.call(danhSachChi);
+        // Only use callback for guest mode; logged in users get data from Firestore stream
+        if (didPop && !transactionService.isLoggedIn) {
+          widget.onDataChanged?.call(danhSachChi);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -349,7 +432,10 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              widget.onDataChanged?.call(danhSachChi);
+              // Only use callback for guest mode
+              if (!transactionService.isLoggedIn) {
+                widget.onDataChanged?.call(danhSachChi);
+              }
               Navigator.pop(context, danhSachChi);
             },
           ),
@@ -479,17 +565,18 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
       final now = DateTime.now();
       final soTien = result['soTien'] as int;
       final tenChiTieu = result['ten'] as String;
+      final newItem = ChiTieuItem(
+        soTien: soTien,
+        thoiGian: now,
+        tenChiTieu: tenChiTieu,
+      );
       
+      // Optimistic UI update for immediate feedback
       setState(() {
-        danhSachChi.add(ChiTieuItem(
-          soTien: soTien,
-          thoiGian: now,
-          tenChiTieu: tenChiTieu,
-        ));
-        widget.onDataChanged?.call(danhSachChi);
+        danhSachChi.add(newItem);
       });
       
-      // Cloud First: Sync to Firestore
+      // Cloud First: When logged in, save to Firestore (main screen listens to stream)
       if (transactionService.isLoggedIn) {
         transactionService.add(
           muc: ChiTieuMuc.khac.name,
@@ -497,6 +584,8 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
           thoiGian: now,
           ghiChu: tenChiTieu,
         );
+      } else {
+        widget.onDataChanged?.call(danhSachChi);
       }
     }
   }
@@ -516,24 +605,32 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
     if (result != null) {
       final ten = result['ten'] as String;
       final soTien = result['soTien'] as int;
+      final now = DateTime.now();
+      final updatedItem = item.copyWith(
+        tenChiTieu: ten,
+        soTien: soTien,
+        thoiGian: now,
+      );
+      
+      // Optimistic UI update for immediate feedback
       setState(() {
-        danhSachChi[index] = item.copyWith(
-          tenChiTieu: ten,
-          soTien: soTien,
-          thoiGian: DateTime.now(),
-        );
-        widget.onDataChanged?.call(danhSachChi);
+        danhSachChi[index] = updatedItem;
       });
-
-      // Cloud First: Sync to Firestore
-      if (item.id != null) {
-        transactionService.update(
-          item.id!,
-          muc: ChiTieuMuc.khac.name,
-          soTien: soTien,
-          ghiChu: ten,
-          thoiGian: DateTime.now(),
-        );
+      
+      // Cloud First: When logged in, update Firestore (main screen listens to stream)
+      // When guest mode, use local callback
+      if (transactionService.isLoggedIn) {
+        if (item.id != null) {
+          transactionService.update(
+            item.id!,
+            muc: ChiTieuMuc.khac.name,
+            soTien: soTien,
+            ghiChu: ten,
+            thoiGian: now,
+          );
+        }
+      } else {
+        widget.onDataChanged?.call(danhSachChi);
       }
     }
   }
@@ -562,23 +659,30 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
 
     if (shouldDelete != true) return;
 
-    // Cloud First: Delete from Firestore
-    if (item.id != null) {
-      transactionService.delete(item.id!);
-    }
-    
-    // Optimistic UI update
+    // Optimistic UI update for immediate feedback
     setState(() {
       danhSachChi.removeAt(index);
-      widget.onDataChanged?.call(danhSachChi);
     });
+    
+    // Cloud First: When logged in, delete from Firestore (main screen listens to stream)
+    // When guest mode, use local callback
+    if (transactionService.isLoggedIn) {
+      if (item.id != null) {
+        transactionService.delete(item.id!);
+      }
+    } else {
+      widget.onDataChanged?.call(danhSachChi);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) widget.onDataChanged?.call(danhSachChi);
+        // Only use callback for guest mode; logged in users get data from Firestore stream
+        if (didPop && !transactionService.isLoggedIn) {
+          widget.onDataChanged?.call(danhSachChi);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -586,7 +690,10 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              widget.onDataChanged?.call(danhSachChi);
+              // Only use callback for guest mode
+              if (!transactionService.isLoggedIn) {
+                widget.onDataChanged?.call(danhSachChi);
+              }
               Navigator.pop(context, danhSachChi);
             },
           ),
@@ -701,15 +808,7 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   void initState() {
     super.initState();
     if (widget.soTienBanDau != null) {
-      if (appCurrency == '\$') {
-        if (exchangeRate > 0) {
-          _controller.text = (widget.soTienBanDau! * exchangeRate).toStringAsFixed(2);
-        } else {
-           _controller.text = (widget.soTienBanDau! / 25000).toStringAsFixed(2);
-        }
-      } else {
-        _controller.text = widget.soTienBanDau.toString();
-      }
+      _controller.text = widget.soTienBanDau.toString();
     }
   }
 
@@ -723,20 +822,7 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    int? soTien;
-    
-    if (appCurrency == '\$') {
-      try {
-        final usdAmount = double.parse(text.replaceAll(',', ''));
-        if (exchangeRate > 0) {
-           soTien = (usdAmount / exchangeRate).toInt();
-        } else {
-           soTien = (usdAmount * 25000).toInt();
-        }
-      } catch (_) {}
-    } else {
-      soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
-    }
+    final soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
 
     if (soTien != null && soTien > 0) {
       Navigator.pop(context, soTien);
@@ -754,17 +840,13 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
           children: [
             TextField(
               controller: _controller,
-              keyboardType: appCurrency == '\$' 
-                  ? const TextInputType.numberWithOptions(decimal: true)
-                  : TextInputType.number,
+              keyboardType: TextInputType.number,
               autofocus: true,
               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
                 decoration: InputDecoration(
                   hintText: '0',
-                  suffixText: appCurrency == 'đ' ? 'đ' : null,
-                  prefixText: appCurrency == '\$' ? '\$' : null,
-                  prefixStyle: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                  suffixText: 'đ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                   filled: true,
                   fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -784,6 +866,106 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
                 ),
                 child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', 
                 style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =================== NHẬP SỐ DƯ SCREEN (WITH NAME) ===================
+class NhapSoDuScreen extends StatefulWidget {
+  final String? tenBanDau;
+  final int? soTienBanDau;
+
+  const NhapSoDuScreen({super.key, this.tenBanDau, this.soTienBanDau});
+
+  @override
+  State<NhapSoDuScreen> createState() => _NhapSoDuScreenState();
+}
+
+class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
+  final TextEditingController _tenController = TextEditingController();
+  final TextEditingController _soTienController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.tenBanDau != null) {
+      _tenController.text = widget.tenBanDau!;
+    }
+    if (widget.soTienBanDau != null) {
+      _soTienController.text = widget.soTienBanDau.toString();
+    }
+  }
+
+  void _xacNhan() {
+    final ten = _tenController.text.trim();
+    final text = _soTienController.text.trim();
+    
+    final soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
+
+    // Name is optional for balance, only amount is required
+    if (soTien != null && soTien > 0) {
+      Navigator.pop(context, {'ten': ten.isEmpty ? null : ten, 'soTien': soTien});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tenController.dispose();
+    _soTienController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Thêm số dư' : 'Add Balance')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            TextField(
+              controller: _tenController,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: appLanguage == 'vi' ? 'Tên số dư (tùy chọn)' : 'Balance Name (optional)',
+                hintText: appLanguage == 'vi' ? 'VD: Lương tháng 1' : 'E.g. January Salary',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF2D2D3F) 
+                    : Colors.grey[200],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _soTienController,
+              keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
+                  suffixText: 'đ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF2D2D3F) 
+                      : Colors.grey[200],
+                ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _xacNhan,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF93),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -815,15 +997,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
       _tenController.text = widget.tenBanDau!;
     }
     if (widget.soTienBanDau != null) {
-      if (appCurrency == '\$') {
-        if (exchangeRate > 0) {
-          _soTienController.text = (widget.soTienBanDau! * exchangeRate).toStringAsFixed(2);
-        } else {
-           _soTienController.text = (widget.soTienBanDau! / 25000).toStringAsFixed(2);
-        }
-      } else {
-        _soTienController.text = widget.soTienBanDau.toString();
-      }
+      _soTienController.text = widget.soTienBanDau.toString();
     }
   }
 
@@ -831,20 +1005,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
     final ten = _tenController.text.trim();
     final text = _soTienController.text.trim();
     
-    int? soTien;
-
-    if (appCurrency == '\$') {
-      try {
-        final usdAmount = double.parse(text.replaceAll(',', ''));
-        if (exchangeRate > 0) {
-           soTien = (usdAmount / exchangeRate).toInt();
-        } else {
-           soTien = (usdAmount * 25000).toInt();
-        }
-      } catch (_) {}
-    } else {
-      soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
-    }
+    final soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
 
     if (ten.isNotEmpty && soTien != null && soTien > 0) {
       Navigator.pop(context, {'ten': ten, 'soTien': soTien});
@@ -883,13 +1044,10 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _soTienController,
-              keyboardType: appCurrency == '\$' 
-                  ? const TextInputType.numberWithOptions(decimal: true)
-                  : TextInputType.number,
+              keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
-                  suffixText: appCurrency == 'đ' ? 'đ' : null,
-                  prefixText: appCurrency == '\$' ? '\$' : null,
+                  suffixText: 'đ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -1176,40 +1334,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   });
                   final prefs = appPrefs ?? await SharedPreferences.getInstance();
                   await prefs.setString(keyLanguage, newLang);
-                  widget.onLanguageChanged?.call();
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.attach_money),
-              title: Text(appLanguage == 'vi' ? 'Đơn vị tiền tệ' : 'Currency', style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(appCurrency == 'đ' ? 'VND (đ)' : 'USD (\$)'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final newCurrency = await showDialog<String>(
-                  context: context,
-                  builder: (context) => SimpleDialog(
-                    title: Text(appLanguage == 'vi' ? 'Chọn đơn vị tiền tệ' : 'Select Currency', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    children: [
-                      SimpleDialogOption(
-                        onPressed: () => Navigator.pop(context, 'đ'),
-                        child: Text('VND (đ)'),
-                      ),
-                      SimpleDialogOption(
-                        onPressed: () => Navigator.pop(context, '\$'),
-                        child: Text('USD (\$)'),
-                      ),
-                    ],
-                  ),
-                );
-                if (newCurrency != null && newCurrency != appCurrency) {
-                  setState(() => appCurrency = newCurrency);
-                  final prefs = appPrefs ?? await SharedPreferences.getInstance();
-                  await prefs.setString(keyCurrency, newCurrency);
-                  if (newCurrency == '\$') await fetchExchangeRate();
                   widget.onLanguageChanged?.call();
                 }
               },

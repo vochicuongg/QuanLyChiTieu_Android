@@ -7,10 +7,16 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'screens.dart';
+import 'screens.dart' hide SettingsScreen, LichSuScreen;
 import 'services/auth_service.dart';
 import 'services/transaction_service.dart'; // Cloud First: Firestore as single source of truth
+import 'services/update_service.dart'; // In-app update service
 import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/statistics_screen.dart';
+import 'screens/budget_screen.dart';
+import 'screens/history_screen.dart';
+import 'screens/settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // =================== GLOBAL STATE ===================
@@ -18,11 +24,6 @@ SharedPreferences? appPrefs;
 String appLanguage = 'vi';
 String appLanguageMode = 'auto'; // 'vi', 'en', or 'auto'
 const String keyLanguage = 'app_language';
-String appCurrency = 'đ';
-const String keyCurrency = 'app_currency';
-double exchangeRate = 0.00004;
-const String keyExchangeRate = 'exchange_rate';
-bool isLoadingRate = false;
 
 // Theme mode: 'light', 'dark', 'system'
 String appThemeMode = 'dark';
@@ -37,8 +38,8 @@ final RegExp _numberFormatRegex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
 
 // =================== COLOR SCHEME ===================
 // Primary color from logo (purple/violet)
-const Color primaryColor = Color(0xFF6C5CE7);
-const Color primaryLightColor = Color(0xFFA29BFE);
+const Color primaryColor = Color(0xFF195fc2);
+const Color primaryLightColor = Color(0xFF415EEF);
 
 // Dark theme colors
 const Color darkSurfaceColor = Color(0xFF1E1E2E);
@@ -260,50 +261,9 @@ String getOrdinalSuffix(int day) {
 
 String getMonthKey(DateTime date) => '${date.month}/${date.year}';
 
-// =================== CURRENCY ===================
-Future<double> fetchExchangeRate() async {
-  try {
-    isLoadingRate = true;
-    final response = await http.get(
-      Uri.parse('https://open.er-api.com/v6/latest/VND'),
-    ).timeout(const Duration(seconds: 10));
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final usdRate = data['rates']['USD'];
-      if (usdRate != null) {
-        exchangeRate = (usdRate as num).toDouble();
-        final prefs = appPrefs ?? await SharedPreferences.getInstance();
-        await prefs.setDouble(keyExchangeRate, exchangeRate);
-      }
-    }
-  } catch (e) {
-    debugPrint('Exchange rate fetch failed: $e');
-  } finally {
-    isLoadingRate = false;
-  }
-  return exchangeRate;
-}
-
-int convertAmount(int vndAmount) {
-  if (appCurrency == 'đ') return vndAmount;
-  return (vndAmount * exchangeRate).toInt();
-}
-
+// =================== FORMATTING ===================
 String formatAmountWithCurrency(int vndAmount) {
-  if (appCurrency == 'đ') {
-    return '${dinhDangSo(vndAmount)} đ';
-  } else {
-    final usdDouble = vndAmount * exchangeRate;
-    return '\$${_formatUsdWithCommas(usdDouble)}';
-  }
-}
-
-String _formatUsdWithCommas(double amount) {
-  final intPart = amount.truncate();
-  final decimalPart = ((amount - intPart) * 100).round();
-  final intStr = intPart.toString().replaceAllMapped(_numberFormatRegex, (m) => '${m[1]},');
-  return '$intStr.${decimalPart.toString().padLeft(2, '0')}';
+  return '${dinhDangSo(vndAmount)} đ';
 }
 
 // =================== MODEL ===================
@@ -407,6 +367,7 @@ class VFinanceApp extends StatefulWidget {
 class _VFinanceAppState extends State<VFinanceApp> {
   DateTime _currentDay = DateTime.now();
   bool _isLoading = true;
+  int _selectedIndex = 2; // Default to Home (center)
   
   final Map<ChiTieuMuc, List<ChiTieuItem>> _chiTheoMuc = {
     for (final muc in ChiTieuMuc.values) muc: <ChiTieuItem>[],
@@ -429,7 +390,6 @@ class _VFinanceAppState extends State<VFinanceApp> {
     _cachedTongHomNay = null;
     _cachedTongMuc.clear();
   }
-
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (appLanguage == 'vi') {
@@ -451,7 +411,15 @@ class _VFinanceAppState extends State<VFinanceApp> {
   void initState() {
     super.initState();
     _currentDay = _asDate(DateTime.now());
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      // Silent update check on startup (after a delay to not block UI)
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          UpdateService().checkForUpdate(context, isManual: false);
+        }
+      });
+    });
     _dayCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkNewDay());
     
     // Cloud First: Subscribe to Firestore when user logs in
@@ -471,6 +439,19 @@ class _VFinanceAppState extends State<VFinanceApp> {
     
     if (transactionService.isLoggedIn) {
       debugPrint('[Phone App] Subscribing to transactionsStream...');
+      
+      // Clear SharedPreferences transaction data to ensure Firestore is the only source
+      final prefs = appPrefs;
+      if (prefs != null) {
+        prefs.remove(_keyChiTheoMuc);
+        prefs.remove(_keyLichSuThang);
+      } else {
+        SharedPreferences.getInstance().then((p) {
+          p.remove(_keyChiTheoMuc);
+          p.remove(_keyLichSuThang);
+        });
+      }
+      
       _transactionsSub = transactionService.transactionsStream.listen(_onTransactionsChanged);
     } else {
       // User logged out: Clear all data to prevent leakage
@@ -616,52 +597,43 @@ class _VFinanceAppState extends State<VFinanceApp> {
       appLanguageMode = savedLanguage;
     }
     
-    final savedCurrency = prefs.getString(keyCurrency);
-    if (savedCurrency != null) appCurrency = savedCurrency;
-    
-    final savedExchangeRate = prefs.getDouble(keyExchangeRate);
-    if (savedExchangeRate != null) exchangeRate = savedExchangeRate;
-    
-    fetchExchangeRate().then((rate) {
-      if (mounted) {
-        setState(() {});
-        _saveData();
+    // Cloud First: Only load transaction data from SharedPreferences for guest mode
+    // When logged in, Firestore is the single source of truth
+    if (!transactionService.isLoggedIn) {
+      final chiTheoMucJson = prefs.getString(_keyChiTheoMuc);
+      if (chiTheoMucJson != null) {
+        try {
+          final Map<String, dynamic> decoded = jsonDecode(chiTheoMucJson);
+          for (final muc in ChiTieuMuc.values) {
+            if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+            final mucName = muc.name;
+            if (decoded.containsKey(mucName)) {
+              final List<dynamic> items = decoded[mucName];
+              _chiTheoMuc[muc] = items.map((e) => ChiTieuItem.fromJson(e as Map<String, dynamic>)).toList();
+            }
+          }
+        } catch (_) {}
       }
-    });
-    
-    final chiTheoMucJson = prefs.getString(_keyChiTheoMuc);
-    if (chiTheoMucJson != null) {
-      try {
-        final Map<String, dynamic> decoded = jsonDecode(chiTheoMucJson);
-        for (final muc in ChiTieuMuc.values) {
-          if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
-          final mucName = muc.name;
-          if (decoded.containsKey(mucName)) {
-            final List<dynamic> items = decoded[mucName];
-            _chiTheoMuc[muc] = items.map((e) => ChiTieuItem.fromJson(e as Map<String, dynamic>)).toList();
+      
+      final lichSuThangJson = prefs.getString(_keyLichSuThang);
+      if (lichSuThangJson != null) {
+        try {
+          final Map<String, dynamic> decoded = jsonDecode(lichSuThangJson);
+          for (final monthKey in decoded.keys) {
+            final Map<String, dynamic> daysData = decoded[monthKey];
+            _lichSuThang[monthKey] = {};
+            for (final dayKey in daysData.keys) {
+              final List<dynamic> entries = daysData[dayKey];
+              _lichSuThang[monthKey]![dayKey] = entries.map((e) {
+                final mucName = e['muc'] as String;
+                final muc = ChiTieuMuc.values.firstWhere((m) => m.name == mucName);
+                final item = ChiTieuItem.fromJson(e['item'] as Map<String, dynamic>);
+                return HistoryEntry(muc: muc, item: item);
+              }).toList();
+            }
           }
-        }
-      } catch (_) {}
-    }
-    
-    final lichSuThangJson = prefs.getString(_keyLichSuThang);
-    if (lichSuThangJson != null) {
-      try {
-        final Map<String, dynamic> decoded = jsonDecode(lichSuThangJson);
-        for (final monthKey in decoded.keys) {
-          final Map<String, dynamic> daysData = decoded[monthKey];
-          _lichSuThang[monthKey] = {};
-          for (final dayKey in daysData.keys) {
-            final List<dynamic> entries = daysData[dayKey];
-            _lichSuThang[monthKey]![dayKey] = entries.map((e) {
-              final mucName = e['muc'] as String;
-              final muc = ChiTieuMuc.values.firstWhere((m) => m.name == mucName);
-              final item = ChiTieuItem.fromJson(e['item'] as Map<String, dynamic>);
-              return HistoryEntry(muc: muc, item: item);
-            }).toList();
-          }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
     }
     
     _invalidateCache();
@@ -677,30 +649,31 @@ class _VFinanceAppState extends State<VFinanceApp> {
   Future<void> _saveData() async {
     final prefs = appPrefs ?? await SharedPreferences.getInstance();
     
-    final Map<String, dynamic> chiTheoMucData = {};
-    for (final muc in ChiTieuMuc.values) {
-      if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
-      chiTheoMucData[muc.name] = _chiTheoMuc[muc]!.map((e) => e.toJson()).toList();
-    }
-    await prefs.setString(_keyChiTheoMuc, jsonEncode(chiTheoMucData));
-    
-    final Map<String, dynamic> lichSuThangData = {};
-    for (final monthKey in _lichSuThang.keys) {
-      lichSuThangData[monthKey] = {};
-      for (final dayKey in _lichSuThang[monthKey]!.keys) {
-        lichSuThangData[monthKey][dayKey] = _lichSuThang[monthKey]![dayKey]!.map((e) => {
-          'muc': e.muc.name,
-          'item': e.item.toJson(),
-        }).toList();
+    // Cloud First: Only save transaction data to SharedPreferences for guest mode
+    // When logged in, Firestore handles all transaction data
+    if (!transactionService.isLoggedIn) {
+      final Map<String, dynamic> chiTheoMucData = {};
+      for (final muc in ChiTieuMuc.values) {
+        if (muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+        chiTheoMucData[muc.name] = _chiTheoMuc[muc]!.map((e) => e.toJson()).toList();
       }
+      await prefs.setString(_keyChiTheoMuc, jsonEncode(chiTheoMucData));
+      
+      final Map<String, dynamic> lichSuThangData = {};
+      for (final monthKey in _lichSuThang.keys) {
+        lichSuThangData[monthKey] = {};
+        for (final dayKey in _lichSuThang[monthKey]!.keys) {
+          lichSuThangData[monthKey][dayKey] = _lichSuThang[monthKey]![dayKey]!.map((e) => {
+            'muc': e.muc.name,
+            'item': e.item.toJson(),
+          }).toList();
+        }
+      }
+      await prefs.setString(_keyLichSuThang, jsonEncode(lichSuThangData));
     }
-    await prefs.setString(_keyLichSuThang, jsonEncode(lichSuThangData));
-    await prefs.setString('app_language', appLanguage);
-    await prefs.setString('app_currency', appCurrency);
-    await prefs.setDouble('exchange_rate', exchangeRate);
     
-    // Cloud First: Transactions are now saved directly to Firestore via TransactionService
-    // _saveData only saves settings locally
+    // Save language setting
+    await prefs.setString('app_language', appLanguage);
   }
 
   void _checkNewDay() {
@@ -824,15 +797,20 @@ class _VFinanceAppState extends State<VFinanceApp> {
   
   /// All-time income (sum of ALL soDu entries across ALL history)
   int get _allTimeIncome {
-    // Today's income
+    final todayDayKey = dinhDangNgayDayDu(_currentDay);
+    final currentMonthKey = getMonthKey(_currentDay);
+    
+    // Today's income (from _chiTheoMuc)
     int total = (_chiTheoMuc[ChiTieuMuc.soDu] ?? <ChiTieuItem>[])
         .where((item) => _sameDay(item.thoiGian, _currentDay))
         .fold(0, (sum, item) => sum + item.soTien);
     
-    // All history income
-    for (final monthData in _lichSuThang.values) {
-      for (final dayData in monthData.values) {
-        for (final entry in dayData) {
+    // All history income (excluding today to avoid double-counting)
+    for (final monthEntry in _lichSuThang.entries) {
+      for (final dayEntry in monthEntry.value.entries) {
+        // Skip today's data since it's already counted from _chiTheoMuc
+        if (monthEntry.key == currentMonthKey && dayEntry.key == todayDayKey) continue;
+        for (final entry in dayEntry.value) {
           if (entry.muc == ChiTieuMuc.soDu) {
             total += entry.item.soTien;
           }
@@ -844,13 +822,18 @@ class _VFinanceAppState extends State<VFinanceApp> {
   
   /// All-time expenses (sum of ALL expense entries across ALL history)
   int get _allTimeExpenses {
-    // Today's expenses
+    final todayDayKey = dinhDangNgayDayDu(_currentDay);
+    final currentMonthKey = getMonthKey(_currentDay);
+    
+    // Today's expenses (from _tongHomNay)
     int total = _tongHomNay;
     
-    // All history expenses
-    for (final monthData in _lichSuThang.values) {
-      for (final dayData in monthData.values) {
-        for (final entry in dayData) {
+    // All history expenses (excluding today to avoid double-counting)
+    for (final monthEntry in _lichSuThang.entries) {
+      for (final dayEntry in monthEntry.value.entries) {
+        // Skip today's data since it's already counted from _tongHomNay
+        if (monthEntry.key == currentMonthKey && dayEntry.key == todayDayKey) continue;
+        for (final entry in dayEntry.value) {
           if (entry.muc != ChiTieuMuc.soDu) {
             total += entry.item.soTien;
           }
@@ -859,6 +842,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
     }
     return total;
   }
+  
 
   Future<void> _moMuc(ChiTieuMuc muc) async {
     if (muc == ChiTieuMuc.soDu) {
@@ -887,40 +871,21 @@ class _VFinanceAppState extends State<VFinanceApp> {
         ),
       );
 
-      if (updated != null) _capNhatLichSuSauThayDoi(muc, updated);
+      // Only use returned data for guest mode; logged in users get data from Firestore stream
+      if (updated != null && !transactionService.isLoggedIn) {
+        _capNhatLichSuSauThayDoi(muc, updated);
+      }
       return;
     }
 
+    // History and Settings are now handled by bottom navigation bar
     if (muc == ChiTieuMuc.lichSu) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LichSuScreen(
-            lichSuThang: _lichSuThang,
-            currentDay: _currentDay,
-            currentData: _chiTheoMuc,
-          ),
-        ),
-      );
+      setState(() => _selectedIndex = 3); // Switch to History tab
       return;
     }
 
     if (muc == ChiTieuMuc.caiDat) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SettingsScreen(
-            onLanguageChanged: () {
-              if (mounted) {
-                setState(() {});
-                _saveData();
-              }
-            },
-            chiTheoMuc: _chiTheoMuc,
-            lichSuThang: _lichSuThang,
-          ),
-        ),
-      );
+      setState(() => _selectedIndex = 4); // Switch to Settings tab
       return;
     }
 
@@ -939,7 +904,10 @@ class _VFinanceAppState extends State<VFinanceApp> {
         ),
       );
 
-      if (updated != null) _capNhatLichSuSauThayDoi(muc, updated);
+      // Only use returned data for guest mode; logged in users get data from Firestore stream
+      if (updated != null && !transactionService.isLoggedIn) {
+        _capNhatLichSuSauThayDoi(muc, updated);
+      }
       return;
     }
 
@@ -958,7 +926,10 @@ class _VFinanceAppState extends State<VFinanceApp> {
       ),
     );
 
-    if (updated != null) _capNhatLichSuSauThayDoi(muc, updated);
+    // Only use returned data for guest mode; logged in users get data from Firestore stream
+    if (updated != null && !transactionService.isLoggedIn) {
+      _capNhatLichSuSauThayDoi(muc, updated);
+    }
   }
 
   @override
@@ -967,258 +938,108 @@ class _VFinanceAppState extends State<VFinanceApp> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-
-    // Balance = All-time income - All-time expenses (persists across months/years)
-    final remaining = _allTimeIncome - _allTimeExpenses;
-    final categories = ChiTieuMuc.values.where((m) => 
-      m != ChiTieuMuc.lichSu && m != ChiTieuMuc.caiDat).toList();
+    // Build the 5 navigation screens
+    final screens = [
+      // 0: Statistics
+      StatisticsScreen(
+        chiTheoMuc: _chiTheoMuc,
+        lichSuThang: _lichSuThang,
+        currentDay: _currentDay,
+      ),
+      // 1: Budget
+      BudgetScreen(
+        chiTheoMuc: _chiTheoMuc,
+        lichSuThang: _lichSuThang,
+        currentDay: _currentDay,
+      ),
+      // 2: Home (center)
+      HomeScreen(
+        chiTheoMuc: _chiTheoMuc,
+        lichSuThang: _lichSuThang,
+        currentDay: _currentDay,
+        allTimeIncome: _allTimeIncome,
+        allTimeExpenses: _allTimeExpenses,
+        monthlyIncome: _monthlyIncome,
+        monthlyExpenses: _monthlyExpenses,
+        tongHomNay: _tongHomNay,
+        onCategoryTap: _moMuc,
+      ),
+      // 3: History
+      HistoryScreen(
+        lichSuThang: _lichSuThang,
+        currentDay: _currentDay,
+        currentData: _chiTheoMuc,
+      ),
+      // 4: Settings
+      SettingsScreen(
+        onLanguageChanged: () {
+          if (mounted) {
+            setState(() {});
+            _saveData();
+          }
+        },
+        chiTheoMuc: _chiTheoMuc,
+        lichSuThang: _lichSuThang,
+      ),
+    ];
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: _selectedIndex == 2 ? AppBar(
         title: const Text('VFinance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history_rounded),
-            onPressed: () => _moMuc(ChiTieuMuc.lichSu),
+        scrolledUnderElevation: 0,
+      ) : null,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: screens,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        indicatorColor: const Color(0xff4CEEC8),
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.pie_chart_outline),
+            selectedIcon: const Icon(Icons.pie_chart),
+            label: appLanguage == 'vi' ? 'Thống kê' : 'Stats',
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () => _moMuc(ChiTieuMuc.caiDat),
+          NavigationDestination(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: const Icon(Icons.account_balance_wallet),
+            label: appLanguage == 'vi' ? 'Ngân sách' : 'Budget',
+          ),
+          NavigationDestination(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.home_outlined, color: primaryColor),
+            ),
+            selectedIcon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: primaryColor,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.home, color: Colors.white),
+            ),
+            label: appLanguage == 'vi' ? 'Trang chủ' : 'Home',
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.history_outlined),
+            selectedIcon: const Icon(Icons.history),
+            label: appLanguage == 'vi' ? 'Lịch sử' : 'History',
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: appLanguage == 'vi' ? 'Cài đặt' : 'Settings',
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Balance Card with Gradient
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4355F0), Color(0xFF2BC0E4), Color(0xFF4FF2C6)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'User')}.',
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    appLanguage == 'vi' ? 'Số dư còn lại' : 'Remaining Balance',
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    remaining >= 0 
-                        ? formatAmountWithCurrency(remaining)
-                        : '-${formatAmountWithCurrency(remaining.abs())}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _BalanceInfo(
-                        label: appLanguage == 'vi' ? 'Thu nhập' : 'Income',
-                        amount: formatAmountWithCurrency(_monthlyIncome),
-                        icon: Icons.add_circle_outline,
-                        color: Colors.greenAccent,
-                      ),
-                      _BalanceInfo(
-                        label: appLanguage == 'vi' ? 'Chi tiêu' : 'Expenses',
-                        amount: formatAmountWithCurrency(_monthlyExpenses),
-                        icon: Icons.remove_circle_outline,
-                        color: Colors.redAccent,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Today's spending
-            Text(
-              appLanguage == 'vi'
-                  ? 'Tổng chi tiêu ${_currentDay.day}/${_currentDay.month}:'
-                  : 'Spending ${getMonthName(_currentDay.month)} ${getOrdinalSuffix(_currentDay.day)}:',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              formatAmountWithCurrency(_tongHomNay),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: expenseColor),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Categories Grid
-            Text(
-              appLanguage == 'vi' ? 'Danh mục' : 'Categories',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.0,
-              ),
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final muc = categories[index];
-                int displayAmount;
-                if (muc == ChiTieuMuc.soDu) {
-                  displayAmount = (_chiTheoMuc[ChiTieuMuc.soDu] ?? <ChiTieuItem>[])
-                      .where((item) => _sameDay(item.thoiGian, _currentDay))
-                      .fold(0, (sum, item) => sum + item.soTien);
-                } else {
-                  displayAmount = _tongMuc(muc);
-                }
-                
-                return _MobileCategoryCard(
-                  icon: muc.icon,
-                  label: muc.ten,
-                  amount: displayAmount,
-                  color: muc.color,
-                  isBalance: muc == ChiTieuMuc.soDu,
-                  onTap: () => _moMuc(muc),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
-class _BalanceInfo extends StatelessWidget {
-  final String label;
-  final String amount;
-  final IconData icon;
-  final Color color;
-
-  const _BalanceInfo({
-    required this.label,
-    required this.amount,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-            Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MobileCategoryCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int amount;
-  final Color color;
-  final bool isBalance;
-  final VoidCallback onTap;
-
-  const _MobileCategoryCard({
-    required this.icon,
-    required this.label,
-    required this.amount,
-    required this.color,
-    required this.onTap,
-    this.isBalance = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (amount > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  formatAmountWithCurrency(amount),
-                  style: TextStyle(
-                    color: isBalance ? incomeColor : expenseColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
