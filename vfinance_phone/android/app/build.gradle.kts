@@ -69,6 +69,16 @@ android {
             signingConfig = if (releaseConfig?.storeFile != null) releaseConfig else signingConfigs.getByName("debug")
         }
     }
+
+    // Custom APK output filename with version
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val versionName = variant.versionName ?: "unknown"
+            output.outputFileName = "VFinance-v${versionName}.apk"
+        }
+    }
 }
 
 dependencies {
