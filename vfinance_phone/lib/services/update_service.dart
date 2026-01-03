@@ -65,13 +65,18 @@ class UpdateService {
         final remoteBuild = remoteVersion.build;
         final currentBuild = currentVersion.build;
         
-        if (remoteBuild.isNotEmpty && currentBuild.isNotEmpty) {
-           // Compare first build component if integers
-           try {
-             final r = int.parse(remoteBuild.first.toString());
-             final c = int.parse(currentBuild.first.toString());
-             if (r > c) hasUpdate = true;
-           } catch (_) {}
+        if (remoteBuild.isNotEmpty) {
+           if (currentBuild.isEmpty) {
+             // Remote has build number, current doesn't -> Treat as update
+             hasUpdate = true;
+           } else {
+             // Both have build numbers -> Compare first component
+             try {
+               final r = int.parse(remoteBuild.first.toString());
+               final c = int.parse(currentBuild.first.toString());
+               if (r > c) hasUpdate = true;
+             } catch (_) {}
+           }
         }
       }
 
