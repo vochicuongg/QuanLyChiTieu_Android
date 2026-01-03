@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../main.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
@@ -23,6 +24,21 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _appVersion = packageInfo.version);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,7 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     child: ListTile(
       leading: const Icon(Icons.info_outline),
       title: Text(appLanguage == 'vi' ? 'Phiên bản' : 'Version', style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text('1.0.0.adr-vochicuongg'),
+      subtitle: Text(_appVersion.isEmpty ? '...' : _appVersion),
       onTap: () => _showVersionDialog(),
     ),
   );
@@ -255,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showVersionDialog() => showDialog(context: context, builder: (c) => AlertDialog(
     title: const Text('VFinance', textAlign: TextAlign.center),
     content: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('1.0.0.adr-vochicuongg', textAlign: TextAlign.center),
+      Text(_appVersion, textAlign: TextAlign.center),
       const SizedBox(height: 16),
       Text(appLanguage == 'vi' ? 'Quản lý chi tiêu\n© 2025-vochicuongg.' : 'Expense Manager\n© 2025-vochicuongg.', textAlign: TextAlign.center),
     ]),
