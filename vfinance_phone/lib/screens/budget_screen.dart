@@ -326,7 +326,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   backgroundColor: muc.color.withOpacity(0.2),
                   child: Icon(muc.icon, color: muc.color, size: 20),
                 ),
-                title: Text(muc.ten),
+                title: Text(muc.ten, style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: spent > 0
                     ? Text(
                         '${appLanguage == 'vi' ? 'Đã chi' : 'Spent'}: ${formatAmountWithCurrency(spent)}',

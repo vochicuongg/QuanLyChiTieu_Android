@@ -68,7 +68,7 @@ class NotificationService {
         const AndroidNotificationChannel(
           _warningChannelId,
           'Budget Warnings',
-          description: 'Notifications when budget reaches 50%',
+          description: 'Notifications when budget reaches 70%',
           importance: Importance.defaultImportance,
           playSound: true,
         ),
@@ -143,19 +143,19 @@ class NotificationService {
 
     // Get month key for tracking (reset monthly)
     final monthKey = '${DateTime.now().year}-${DateTime.now().month}';
-    final notificationKey50 = '${categoryName}_50_$monthKey';
+    final notificationKey70 = '${categoryName}_70_$monthKey';
     final notificationKey100 = '${categoryName}_100_$monthKey';
 
     final prefs = appPrefs ?? await SharedPreferences.getInstance();
     final shownNotifications = prefs.getStringList(_keyShownNotifications) ?? [];
 
-    // Check 50% threshold crossing
-    if (oldPercent < 0.5 && newPercent >= 0.5 && !shownNotifications.contains(notificationKey50)) {
+    // Check 70% threshold crossing
+    if (oldPercent < 0.7 && newPercent >= 0.7 && !shownNotifications.contains(notificationKey70)) {
       showWarning = true;
       await _showWarningNotification(categoryName, (newPercent * 100).toInt());
       
       // Mark as shown
-      shownNotifications.add(notificationKey50);
+      shownNotifications.add(notificationKey70);
       await prefs.setStringList(_keyShownNotifications, shownNotifications);
     }
 
@@ -172,7 +172,7 @@ class NotificationService {
     return {'showWarning': showWarning, 'showCritical': showCritical};
   }
 
-  /// Show 50% warning notification
+  /// Show 70% warning notification
   Future<void> _showWarningNotification(String categoryName, int percentage) async {
     final isVi = appLanguage == 'vi';
     
@@ -184,14 +184,14 @@ class NotificationService {
         : 'You\'ve used $percentage% of your "$categoryName" budget';
 
     await _notifications.show(
-      categoryName.hashCode + 50, // Unique ID
+      categoryName.hashCode +  70, // Unique ID
       title,
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           _warningChannelId,
           'Budget Warnings',
-          channelDescription: 'Notifications when budget reaches 50%',
+          channelDescription: 'Notifications when budget reaches 70%',
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
           icon: '@mipmap/ic_launcher',
@@ -205,7 +205,7 @@ class NotificationService {
       payload: 'budget_warning_$categoryName',
     );
 
-    debugPrint('[NotificationService] Showed 50% warning for $categoryName');
+    debugPrint('[NotificationService] Showed 70% warning for $categoryName');
   }
 
   /// Show 100% critical notification with vibration

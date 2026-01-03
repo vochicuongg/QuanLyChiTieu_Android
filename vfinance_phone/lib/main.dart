@@ -42,7 +42,7 @@ final RegExp _numberFormatRegex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
 const Color primaryColor = Color(0xFF195fc2);
 const Color primaryLightColor = Color(0xFF415EEF);
 
-// Dark theme colors
+// Dark theme colors0
 const Color darkSurfaceColor = Color(0xFF1E1E2E);
 const Color darkCardColor = Color(0xFF2D2D3F);
 
@@ -269,7 +269,7 @@ String getMonthKey(DateTime date) => '${date.month}/${date.year}';
 
 // =================== FORMATTING ===================
 String formatAmountWithCurrency(int vndAmount) {
-  return '${dinhDangSo(vndAmount)} đ';
+  return '${dinhDangSo(vndAmount)} ₫';
 }
 
 // =================== MODEL ===================
@@ -278,15 +278,17 @@ class ChiTieuItem {
   final int soTien;
   final DateTime thoiGian;
   final String? tenChiTieu;
+  final String? subCategory; // Subcategory path (e.g., "nhaTro.tienDien")
 
-  ChiTieuItem({this.id, required this.soTien, required this.thoiGian, this.tenChiTieu});
+  ChiTieuItem({this.id, required this.soTien, required this.thoiGian, this.tenChiTieu, this.subCategory});
 
-  ChiTieuItem copyWith({String? id, int? soTien, DateTime? thoiGian, String? tenChiTieu}) {
+  ChiTieuItem copyWith({String? id, int? soTien, DateTime? thoiGian, String? tenChiTieu, String? subCategory}) {
     return ChiTieuItem(
       id: id ?? this.id,
       soTien: soTien ?? this.soTien,
       thoiGian: thoiGian ?? this.thoiGian,
       tenChiTieu: tenChiTieu ?? this.tenChiTieu,
+      subCategory: subCategory ?? this.subCategory,
     );
   }
 
@@ -294,12 +296,14 @@ class ChiTieuItem {
     'soTien': soTien,
     'thoiGian': thoiGian.toIso8601String(),
     if (tenChiTieu != null) 'tenChiTieu': tenChiTieu,
+    if (subCategory != null) 'subCategory': subCategory,
   };
 
   factory ChiTieuItem.fromJson(Map<String, dynamic> json) => ChiTieuItem(
     soTien: json['soTien'] as int,
     thoiGian: DateTime.parse(json['thoiGian'] as String),
     tenChiTieu: json['tenChiTieu'] as String?,
+    subCategory: json['subCategory'] as String?,
   );
 }
 
@@ -317,13 +321,13 @@ extension ChiTieuMucX on ChiTieuMuc {
     final isVi = appLanguage == 'vi';
     switch (this) {
       case ChiTieuMuc.soDu: return isVi ? 'Số dư' : 'Balance';
-      case ChiTieuMuc.nhaTro: return isVi ? 'Nhà trọ' : 'Rent';
-      case ChiTieuMuc.hocPhi: return isVi ? 'Học phí' : 'Tuition';
+      case ChiTieuMuc.nhaTro: return isVi ? 'Nhà ở' : 'Housing';
+      case ChiTieuMuc.hocPhi: return isVi ? 'Giáo dục' : 'Education';
       case ChiTieuMuc.thucAn: return isVi ? 'Thức ăn' : 'Food';
       case ChiTieuMuc.doUong: return isVi ? 'Đồ uống' : 'Drinks';
-      case ChiTieuMuc.xang: return isVi ? 'Xăng' : 'Gas';
+      case ChiTieuMuc.xang: return isVi ? 'Di chuyển' : 'Transportation';
       case ChiTieuMuc.muaSam: return isVi ? 'Mua sắm' : 'Shopping';
-      case ChiTieuMuc.suaXe: return isVi ? 'Sửa xe' : 'Repair';
+      case ChiTieuMuc.suaXe: return isVi ? 'Sửa chữa' : 'Repair';
       case ChiTieuMuc.khac: return isVi ? 'Khoản chi khác' : 'Other';
       case ChiTieuMuc.lichSu: return isVi ? 'Lịch sử' : 'History';
       case ChiTieuMuc.caiDat: return isVi ? 'Cài đặt' : 'Settings';
@@ -559,6 +563,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
           soTien: tx.soTien, 
           thoiGian: tx.thoiGian,
           tenChiTieu: tx.ghiChu,
+          subCategory: tx.subCategory,
         );
         
         if (_sameDay(item.thoiGian, _currentDay)) {
@@ -951,6 +956,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
         chiTheoMuc: _chiTheoMuc,
         lichSuThang: _lichSuThang,
         currentDay: _currentDay,
+        isVisible: _selectedIndex == 0,
       ),
       // 1: Budget
       BudgetScreen(

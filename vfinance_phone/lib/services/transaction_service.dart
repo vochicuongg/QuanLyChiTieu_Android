@@ -9,6 +9,7 @@ class TransactionDoc {
   final int soTien;
   final DateTime thoiGian;
   final String? ghiChu;
+  final String? subCategory;
 
   TransactionDoc({
     required this.id,
@@ -16,6 +17,7 @@ class TransactionDoc {
     required this.soTien,
     required this.thoiGian,
     this.ghiChu,
+    this.subCategory,
   });
 
   factory TransactionDoc.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -27,6 +29,7 @@ class TransactionDoc {
         soTien: ((data['soTien'] as num?) ?? 0).toInt(),
         thoiGian: (data['thoiGian'] as Timestamp?)?.toDate() ?? DateTime.now(),
         ghiChu: data['ghiChu'] as String?,
+        subCategory: data['subCategory'] as String?,
       );
     } catch (e) {
       debugPrint('[TransactionDoc] Error parsing doc ${doc.id}: $e');
@@ -47,6 +50,7 @@ class TransactionDoc {
       'soTien': soTien,
       'thoiGian': Timestamp.fromDate(thoiGian),
       'ghiChu': ghiChu,
+      if (subCategory != null) 'subCategory': subCategory,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -94,6 +98,7 @@ class TransactionService {
     required int soTien,
     required DateTime thoiGian,
     String? ghiChu,
+    String? subCategory,
   }) async {
     final ref = _transactionsRef;
     if (ref == null) {
@@ -101,13 +106,14 @@ class TransactionService {
       return;
     }
 
-    debugPrint('[TransactionService] Adding transaction: muc=$muc, soTien=$soTien');
+    debugPrint('[TransactionService] Adding transaction: muc=$muc, soTien=$soTien, subCategory=$subCategory');
     try {
       await ref.add({
         'muc': muc,
         'soTien': soTien,
         'thoiGian': Timestamp.fromDate(thoiGian),
         'ghiChu': ghiChu,
+        if (subCategory != null) 'subCategory': subCategory,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

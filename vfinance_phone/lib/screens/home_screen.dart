@@ -267,7 +267,7 @@ class _MobileCategoryCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

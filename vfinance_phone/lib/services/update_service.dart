@@ -18,11 +18,10 @@ class UpdateService {
 
   bool _isChecking = false;
 
-  /// Extract semantic version (X.Y.Z) from version string
-  /// Handles formats like "1.0.0", "1.0.0.adr-vochicuongg", "1.0.0-beta1"
+  /// Extract semantic version including build number
   String _extractSemVer(String version) {
-    // Match X.Y.Z pattern at the start
-    final match = RegExp(r'^(\d+\.\d+\.\d+)').firstMatch(version);
+    // Match X.Y.Z potentially followed by +build
+    final match = RegExp(r'^(\d+\.\d+\.\d+(\+[a-zA-Z0-9\.-]+)?)').firstMatch(version);
     return match?.group(1) ?? '0.0.0';
   }
 
@@ -33,7 +32,7 @@ class UpdateService {
     _isChecking = true;
 
     try {
-      // Get current app version and extract semantic version (X.Y.Z)
+      // Get current app version
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersionStr = _extractSemVer(packageInfo.version);
       final currentVersion = Version.parse(currentVersionStr);
@@ -58,8 +57,25 @@ class UpdateService {
 
       final remoteVersion = Version.parse(remoteVersionStr);
 
-      // Compare versions
-      if (remoteVersion > currentVersion) {
+      // Compare versions (including build number if main versions are equal)
+      bool hasUpdate = remoteVersion > currentVersion;
+      
+      // If main versions are equal, check build numbers
+      if (!hasUpdate && remoteVersion == currentVersion) {
+        final remoteBuild = remoteVersion.build;
+        final currentBuild = currentVersion.build;
+        
+        if (remoteBuild.isNotEmpty && currentBuild.isNotEmpty) {
+           // Compare first build component if integers
+           try {
+             final r = int.parse(remoteBuild.first.toString());
+             final c = int.parse(currentBuild.first.toString());
+             if (r > c) hasUpdate = true;
+           } catch (_) {}
+        }
+      }
+
+      if (hasUpdate) {
         if (context.mounted) {
           _showUpdateDialog(
             context,

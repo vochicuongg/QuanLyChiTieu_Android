@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../models/expense_categories.dart';
 
 /// History Screen - Shows transaction history
 class HistoryScreen extends StatelessWidget {
@@ -70,12 +71,12 @@ class HistoryScreen extends StatelessWidget {
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: sortedMonths.length,
-              itemBuilder: (context, i) => _buildMonthCard(combined, sortedMonths[i], i == 0),
+              itemBuilder: (context, i) => _buildMonthCard(context, combined, sortedMonths[i], i == 0),
             ),
     );
   }
 
-  Widget _buildMonthCard(Map<String, Map<String, List<HistoryEntry>>> combined, String monthKey, bool expanded) {
+  Widget _buildMonthCard(BuildContext context, Map<String, Map<String, List<HistoryEntry>>> combined, String monthKey, bool expanded) {
     final daysData = combined[monthKey]!;
     final totalExpense = daysData.values.expand((l) => l).where((e) => e.muc != ChiTieuMuc.soDu).fold(0, (s, e) => s + e.item.soTien);
     final totalIncome = daysData.values.expand((l) => l).where((e) => e.muc == ChiTieuMuc.soDu).fold(0, (s, e) => s + e.item.soTien);
@@ -86,43 +87,108 @@ class HistoryScreen extends StatelessWidget {
           .compareTo(DateTime(int.parse(pa[2]), int.parse(pa[1]), int.parse(pa[0])));
     });
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ExpansionTile(
-        initiallyExpanded: expanded,
-        title: Row(children: [
-          Text(appLanguage == 'vi' ? 'Tháng $monthKey' : '${getMonthName(int.parse(monthKey.split('/')[0]))} ${monthKey.split('/')[1]}',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (totalExpense > 0) Text(formatAmountWithCurrency(totalExpense), style: const TextStyle(color: expenseColor, fontSize: 13, fontWeight: FontWeight.bold)),
-            if (totalIncome > 0) Text(formatAmountWithCurrency(totalIncome), style: const TextStyle(color: incomeColor, fontSize: 13, fontWeight: FontWeight.bold)),
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: ExpansionTile(
+          initiallyExpanded: expanded,
+          title: Row(children: [
+            Text(appLanguage == 'vi' ? 'Tháng $monthKey' : '${getMonthName(int.parse(monthKey.split('/')[0]))} ${monthKey.split('/')[1]}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              if (totalExpense > 0) Text(formatAmountWithCurrency(totalExpense), style: const TextStyle(color: expenseColor, fontSize: 13, fontWeight: FontWeight.bold)),
+              if (totalIncome > 0) Text(formatAmountWithCurrency(totalIncome), style: const TextStyle(color: incomeColor, fontSize: 13, fontWeight: FontWeight.bold)),
+            ]),
           ]),
-        ]),
-        children: sortedDays.map((dayKey) => _buildDayTile(daysData[dayKey]!, dayKey)).toList(),
+          children: sortedDays.map((dayKey) => _buildDayTile(context, daysData[dayKey]!, dayKey)).toList(),
+        ),
       ),
     );
   }
 
-  Widget _buildDayTile(List<HistoryEntry> items, String dayKey) {
+  Widget _buildDayTile(BuildContext context, List<HistoryEntry> items, String dayKey) {
     final dayExpense = items.where((e) => e.muc != ChiTieuMuc.soDu).fold(0, (s, e) => s + e.item.soTien);
     final dayIncome = items.where((e) => e.muc == ChiTieuMuc.soDu).fold(0, (s, e) => s + e.item.soTien);
 
-    return ExpansionTile(
-      title: Row(children: [
-        Text(appLanguage == 'vi' ? 'Ngày ${dayKey.split('/')[0]}' : getOrdinalSuffix(int.parse(dayKey.split('/')[0]))),
-        const Spacer(),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          if (dayExpense > 0) Text(formatAmountWithCurrency(dayExpense), style: const TextStyle(color: expenseColor, fontSize: 12, fontWeight: FontWeight.bold)),
-          if (dayIncome > 0) Text(formatAmountWithCurrency(dayIncome), style: const TextStyle(color: incomeColor, fontSize: 12, fontWeight: FontWeight.bold)),
+    // Group items by category (muc)
+    final groupedByCategory = <ChiTieuMuc, List<HistoryEntry>>{};
+    for (final entry in items) {
+      groupedByCategory.putIfAbsent(entry.muc, () => []).add(entry);
+    }
+
+    // Sort categories: soDu first, then by total amount descending
+    final sortedCategories = groupedByCategory.keys.toList()
+      ..sort((a, b) {
+        if (a == ChiTieuMuc.soDu) return -1;
+        if (b == ChiTieuMuc.soDu) return 1;
+        final totalA = groupedByCategory[a]!.fold(0, (s, e) => s + e.item.soTien);
+        final totalB = groupedByCategory[b]!.fold(0, (s, e) => s + e.item.soTien);
+        return totalB.compareTo(totalA);
+      });
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        title: Row(children: [
+          Text(appLanguage == 'vi' ? 'Ngày ${dayKey.split('/')[0]}' : getOrdinalSuffix(int.parse(dayKey.split('/')[0]))),
+          const Spacer(),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (dayExpense > 0) Text(formatAmountWithCurrency(dayExpense), style: const TextStyle(color: expenseColor, fontSize: 12, fontWeight: FontWeight.bold)),
+            if (dayIncome > 0) Text(formatAmountWithCurrency(dayIncome), style: const TextStyle(color: incomeColor, fontSize: 12, fontWeight: FontWeight.bold)),
+          ]),
         ]),
-      ]),
-      children: items.map((e) => ListTile(
-        leading: CircleAvatar(backgroundColor: e.muc.color.withOpacity(0.2), child: Icon(e.muc.icon, color: e.muc.color, size: 20)),
-        title: Text(e.item.tenChiTieu ?? e.muc.ten),
-        subtitle: Text(dinhDangGio(e.item.thoiGian)),
-        trailing: Text(formatAmountWithCurrency(e.item.soTien), style: TextStyle(color: e.muc == ChiTieuMuc.soDu ? incomeColor : expenseColor, fontWeight: FontWeight.w600)),
-      )).toList(),
+        children: sortedCategories.map((muc) {
+          final categoryItems = groupedByCategory[muc]!;
+          final categoryTotal = categoryItems.fold(0, (s, e) => s + e.item.soTien);
+          
+          return Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              leading: CircleAvatar(
+                backgroundColor: muc.color.withOpacity(0.2),
+                radius: 16,
+                child: Icon(muc.icon, color: muc.color, size: 18),
+              ),
+              title: Text(muc.ten, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              trailing: Text(
+                formatAmountWithCurrency(categoryTotal),
+                style: TextStyle(
+                  color: muc == ChiTieuMuc.soDu ? incomeColor : expenseColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              children: categoryItems.map((e) => ListTile(
+                contentPadding: const EdgeInsets.only(left: 56, right: 16),
+                leading: Icon(
+                  e.item.subCategory != null 
+                      ? getCategoryIcon(e.item.subCategory!)
+                      : muc.icon,
+                  color: muc.color,
+                  size: 18,
+                ),
+                title: Text(
+                  e.item.subCategory != null 
+                      ? getCategoryDisplayName(e.item.subCategory!, appLanguage)
+                      : (e.item.tenChiTieu ?? muc.ten),
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: Text(dinhDangGio(e.item.thoiGian), style: const TextStyle(fontSize: 11)),
+                trailing: Text(
+                  formatAmountWithCurrency(e.item.soTien),
+                  style: TextStyle(
+                    color: muc == ChiTieuMuc.soDu ? incomeColor : expenseColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+              )).toList(),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }

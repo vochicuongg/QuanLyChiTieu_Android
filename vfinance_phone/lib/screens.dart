@@ -5,6 +5,8 @@ import 'main.dart';
 import 'services/auth_service.dart';
 import 'services/transaction_service.dart'; // Cloud First
 import 'services/notification_service.dart'; // Budget notifications
+import 'models/expense_categories.dart'; // Hierarchical categories
+import 'widgets/category_picker.dart'; // Category picker dialog
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 
@@ -318,14 +320,26 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
   }
 
   Future<void> themChiTieu() async {
-    final soTien = await Navigator.push<int>(
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const NhapSoTienScreen()),
+      MaterialPageRoute(builder: (_) => NhapSoTienScreen(
+        parentCategoryId: widget.muc.name,
+      )),
     );
+
+    // Extract amount from result (can be Map or int)
+    int? soTien;
+    String? subCategory;
+    if (result is Map) {
+      soTien = result['amount'] as int?;
+      subCategory = result['category'] as String?;
+    } else if (result is int) {
+      soTien = result;
+    }
 
     if (soTien != null && soTien > 0) {
       final now = DateTime.now();
-      final newItem = ChiTieuItem(soTien: soTien, thoiGian: now);
+      final newItem = ChiTieuItem(soTien: soTien, thoiGian: now, subCategory: subCategory);
       
       // Check budget thresholds before adding (only for logged-in users)
       if (transactionService.isLoggedIn) {
@@ -343,6 +357,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
           muc: widget.muc.name,
           soTien: soTien,
           thoiGian: now,
+          subCategory: subCategory,
         );
       } else {
         widget.onDataChanged?.call(danhSachChi);
@@ -539,11 +554,30 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: widget.muc.color.withOpacity(0.2),
-                          child: Icon(widget.muc.icon, color: widget.muc.color, size: 20),
+                          child: Icon(
+                            item.subCategory != null 
+                                ? getCategoryIcon(item.subCategory!)
+                                : widget.muc.icon, 
+                            color: widget.muc.color, 
+                            size: 20,
+                          ),
                         ),
                         title: Text(formatAmountWithCurrency(item.soTien), 
                           style: const TextStyle(color: Color(0xFFF08080))),
-                        subtitle: Text(dinhDangGio(item.thoiGian)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (item.subCategory != null)
+                              Text(
+                                getCategoryDisplayName(item.subCategory!, appLanguage),
+                                style: TextStyle(
+                                  color: widget.muc.color,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            Text(dinhDangGio(item.thoiGian)),
+                          ],
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -836,8 +870,17 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
 // =================== NHẬP SỐ TIỀN SCREEN ===================
 class NhapSoTienScreen extends StatefulWidget {
   final int? soTienBanDau;
+  final String? initialCategory; // Optional initial category path
+  final String? parentCategoryId; // Parent category for subcategory picker
+  final bool showCategoryPicker; // Whether to show category selector
   
-  const NhapSoTienScreen({super.key, this.soTienBanDau});
+  const NhapSoTienScreen({
+    super.key, 
+    this.soTienBanDau,
+    this.initialCategory,
+    this.parentCategoryId,
+    this.showCategoryPicker = true,
+  });
 
   @override
   State<NhapSoTienScreen> createState() => _NhapSoTienScreenState();
@@ -845,6 +888,8 @@ class NhapSoTienScreen extends StatefulWidget {
 
 class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   final TextEditingController _controller = TextEditingController();
+  String? _selectedCategory;
+  bool _isNavigating = false; // Prevent double navigation
 
   @override
   void initState() {
@@ -852,6 +897,7 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
     if (widget.soTienBanDau != null) {
       _controller.text = widget.soTienBanDau.toString();
     }
+    _selectedCategory = widget.initialCategory;
   }
 
   @override
@@ -861,34 +907,119 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   }
 
   void _xacNhan() {
+    if (_isNavigating) return; // Prevent double tap
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
     final soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
 
-    if (soTien != null && soTien > 0) {
-      Navigator.pop(context, soTien);
+    if (soTien != null && soTien > 0 && mounted) {
+      _isNavigating = true;
+      // Return both amount and category if category picker is enabled
+      if (widget.showCategoryPicker && _selectedCategory != null) {
+        Navigator.pop(context, {'amount': soTien, 'category': _selectedCategory});
+      } else {
+        Navigator.pop(context, soTien);
+      }
+    }
+  }
+
+  Future<void> _pickCategory() async {
+    if (_isNavigating) return; // Prevent double tap
+    _isNavigating = true;
+    
+    String? result;
+    if (widget.parentCategoryId != null) {
+      // Show subcategory picker for specific parent
+      result = await showSubCategoryPicker(context, widget.parentCategoryId!);
+      if (result != null) {
+        // Store full path: parentId.subId
+        result = '${widget.parentCategoryId}.$result';
+      }
+    } else {
+      // Show full category picker
+      result = await showCategoryPicker(context);
+    }
+    
+    _isNavigating = false;
+    if (result != null && mounted) {
+      setState(() => _selectedCategory = result);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isVi = appLanguage == 'vi';
+    
     return Scaffold(
-      appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Nhập số tiền' : 'Enter amount')),
+      appBar: AppBar(title: Text(isVi ? 'Nhập số tiền' : 'Enter amount')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Category selector (if enabled)
+            if (widget.showCategoryPicker) ...[
+              InkWell(
+                onTap: _pickCategory,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark 
+                        ? const Color(0xFF2D2D3F) 
+                        : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _selectedCategory != null 
+                          ? getCategoryColor(_selectedCategory!) 
+                          : Colors.grey.shade400,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _selectedCategory != null 
+                            ? getCategoryIcon(_selectedCategory!)
+                            : Icons.category_outlined,
+                        color: _selectedCategory != null 
+                            ? getCategoryColor(_selectedCategory!)
+                            : Colors.grey,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _selectedCategory != null 
+                              ? getCategoryDisplayName(_selectedCategory!, appLanguage)
+                              : (isVi ? 'Chọn danh mục' : 'Select category'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedCategory != null 
+                                ? null 
+                                : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            // Amount input
             TextField(
               controller: _controller,
               keyboardType: TextInputType.number,
-              autofocus: true,
+              autofocus: !widget.showCategoryPicker,
               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
                 decoration: InputDecoration(
                   hintText: '0',
-                  suffixText: 'đ',
+                  suffixText: '₫',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                   filled: true,
                   fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -906,8 +1037,8 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
                   backgroundColor: const Color(0xFF6C5CE7),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', 
-                style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                child: Text(isVi ? 'Xác nhận' : 'Confirm', 
+                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -989,7 +1120,7 @@ class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
               keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
-                  suffixText: 'đ',
+                  suffixText: '₫',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -1089,7 +1220,7 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
               keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
-                  suffixText: 'đ',
+                  suffixText: '₫',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Theme.of(context).brightness == Brightness.dark 

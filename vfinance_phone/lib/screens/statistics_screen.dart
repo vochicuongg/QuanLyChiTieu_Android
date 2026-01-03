@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../main.dart';
+import '../models/expense_categories.dart';
 
 /// Statistics Screen - Shows spending analysis with animated pie chart
 class StatisticsScreen extends StatefulWidget {
   final Map<ChiTieuMuc, List<ChiTieuItem>> chiTheoMuc;
   final Map<String, Map<String, List<HistoryEntry>>> lichSuThang;
   final DateTime currentDay;
+  final bool isVisible;
 
   const StatisticsScreen({
     super.key,
     required this.chiTheoMuc,
     required this.lichSuThang,
     required this.currentDay,
+    required this.isVisible,
   });
 
   @override
@@ -27,15 +30,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
     _animation = CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeOutCubic,
     );
-    // Start animation when screen loads
-    _animationController.forward();
+    
+    // Start animation if visible initially
+    if (widget.isVisible) {
+      _animationController.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(StatisticsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Trigger animation when switching to this tab
+    if (widget.isVisible && !oldWidget.isVisible) {
+      _animationController.reset();
+      _animationController.forward();
+    }
   }
 
   @override
@@ -56,6 +72,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         'date': item.thoiGian,
         'amount': item.soTien,
         'name': item.tenChiTieu,
+        'subCategory': item.subCategory,
         'dayKey': todayDayKey,
       });
     }
@@ -71,6 +88,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
               'date': entry.item.thoiGian,
               'amount': entry.item.soTien,
               'name': entry.item.tenChiTieu,
+              'subCategory': entry.item.subCategory,
               'dayKey': dayEntry.key,
             });
           }
@@ -147,7 +165,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   ],
                 ),
               ),
-              const Divider(height: 24),
+              const SizedBox(height: 16),
               // Transaction list
               Expanded(
                 child: transactions.isEmpty
@@ -157,58 +175,93 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           style: TextStyle(color: Colors.grey.shade500),
                         ),
                       )
-                    : ListView.separated(
-                        controller: scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: transactions.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (_, index) {
-                          final t = transactions[index];
-                          final date = t['date'] as DateTime;
-                          final amount = t['amount'] as int;
-                          final name = t['name'] as String?;
+                    : Builder(
+                        builder: (context) {
+                          // Group transactions by day
+                          final groupedByDay = <String, List<Map<String, dynamic>>>{};
+                          for (final t in transactions) {
+                            final dayKey = t['dayKey'] as String;
+                            groupedByDay.putIfAbsent(dayKey, () => []).add(t);
+                          }
                           
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                color: category.color.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    '${date.day}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: category.color,
+                          // Sort days (newest first)
+                          final sortedDays = groupedByDay.keys.toList()
+                            ..sort((a, b) {
+                              final pa = a.split('/'), pb = b.split('/');
+                              return DateTime(int.parse(pb[2]), int.parse(pb[1]), int.parse(pb[0]))
+                                  .compareTo(DateTime(int.parse(pa[2]), int.parse(pa[1]), int.parse(pa[0])));
+                            });
+                          
+                          return ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: sortedDays.length,
+                            itemBuilder: (_, dayIndex) {
+                              final dayKey = sortedDays[dayIndex];
+                              final dayItems = groupedByDay[dayKey]!;
+                              final dayTotal = dayItems.fold(0, (s, t) => s + (t['amount'] as int));
+                              final dayParts = dayKey.split('/');
+                              
+                              return Theme(
+                                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                child: ExpansionTile(
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: category.color.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          dayParts[0],
+                                          style: TextStyle(fontWeight: FontWeight.bold, color: category.color, fontSize: 14),
+                                        ),
+                                        Text(
+                                          appLanguage == 'vi' ? 'Th${dayParts[1]}' : getMonthName(int.parse(dayParts[1])).substring(0, 3),
+                                          style: TextStyle(fontSize: 9, color: category.color),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  Text(
-                                    appLanguage == 'vi' ? 'Th${date.month}' : getMonthName(date.month).substring(0, 3),
-                                    style: TextStyle(fontSize: 10, color: category.color),
+                                  title: Text(
+                                    appLanguage == 'vi' ? 'Ngày ${dayParts[0]}' : getOrdinalSuffix(int.parse(dayParts[0])),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
-                                ],
-                              ),
-                            ),
-                            title: Text(
-                              name ?? category.ten,
-                              style: const TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            subtitle: Text(
-                              dinhDangGio(date),
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                            ),
-                            trailing: Text(
-                              formatAmountWithCurrency(amount),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: expenseColor,
-                              ),
-                            ),
+                                  trailing: Text(
+                                    formatAmountWithCurrency(dayTotal),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor, fontSize: 13),
+                                  ),
+                                  children: dayItems.map((t) {
+                                    final date = t['date'] as DateTime;
+                                    final amount = t['amount'] as int;
+                                    final subCategory = t['subCategory'] as String?;
+                                    final name = t['name'] as String?;
+                                    
+                                    final displayName = subCategory != null 
+                                        ? getCategoryDisplayName(subCategory, appLanguage)
+                                        : (name ?? category.ten);
+                                    
+                                    return ListTile(
+                                      contentPadding: const EdgeInsets.only(left: 56, right: 16),
+                                      leading: Icon(
+                                        subCategory != null ? getCategoryIcon(subCategory) : category.icon,
+                                        color: category.color,
+                                        size: 18,
+                                      ),
+                                      title: Text(displayName, style: const TextStyle(fontSize: 13)),
+                                      subtitle: Text(dinhDangGio(date), style: const TextStyle(fontSize: 11)),
+                                      trailing: Text(
+                                        formatAmountWithCurrency(amount),
+                                        style: const TextStyle(fontWeight: FontWeight.w500, color: expenseColor, fontSize: 12),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
@@ -310,15 +363,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           PieChartData(
                             sectionsSpace: 2,
                             centerSpaceRadius: 40,
-                            startDegreeOffset: -90,
+                            // Rotate from -90 to 270 degrees (360 degree rotation)
+                            startDegreeOffset: -90.0 + (360.0 * _animation.value),
                             sections: sortedCategories.map((entry) {
                               final percentage = (entry.value / totalExpenses * 100);
-                              // Animate the radius from 0 to 50
+                              
+                              // All sections animate radius together
                               final animatedRadius = 50.0 * _animation.value;
+                              
                               return PieChartSectionData(
                                 color: entry.key.color,
                                 value: entry.value.toDouble(),
-                                title: _animation.value > 0.5 ? '${percentage.toStringAsFixed(0)}%' : '',
+                                title: _animation.value > 0.8 ? '${percentage.toStringAsFixed(0)}%' : '',
                                 radius: animatedRadius,
                                 titleStyle: const TextStyle(
                                   fontSize: 12,
@@ -328,8 +384,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                               );
                             }).toList(),
                           ),
-                          swapAnimationDuration: const Duration(milliseconds: 150),
-                          swapAnimationCurve: Curves.easeInOut,
+                          swapAnimationDuration: Duration.zero,
                         );
                       },
                     ),
@@ -352,7 +407,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           backgroundColor: entry.key.color.withOpacity(0.2),
                           child: Icon(entry.key.icon, color: entry.key.color, size: 20),
                         ),
-                        title: Text(entry.key.ten, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        title: Text(entry.key.ten, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: LinearProgressIndicator(
                           value: percentage / 100,
                           backgroundColor: Colors.grey.withOpacity(0.2),
