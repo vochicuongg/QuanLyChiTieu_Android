@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main.dart';
 import 'services/auth_service.dart';
 import 'services/transaction_service.dart'; // Cloud First
+import 'services/notification_service.dart'; // Budget notifications
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 
@@ -325,6 +327,11 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
       final now = DateTime.now();
       final newItem = ChiTieuItem(soTien: soTien, thoiGian: now);
       
+      // Check budget thresholds before adding (only for logged-in users)
+      if (transactionService.isLoggedIn) {
+        await _checkBudgetAndNotify(widget.muc.name, soTien);
+      }
+      
       // Optimistic UI update for immediate feedback
       setState(() {
         danhSachChi.add(newItem);
@@ -340,6 +347,41 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
       } else {
         widget.onDataChanged?.call(danhSachChi);
       }
+    }
+  }
+  
+  /// Check budget thresholds and trigger notifications
+  Future<void> _checkBudgetAndNotify(String mucName, int newAmount) async {
+    try {
+      final user = authService.currentUser;
+      if (user == null) return;
+      
+      // Get budget for this category
+      final budgetDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('budgets')
+          .get();
+      
+      if (!budgetDoc.exists) return;
+      
+      final budgets = budgetDoc.data() ?? {};
+      final budgetLimit = (budgets[mucName] as num?)?.toInt() ?? 0;
+      if (budgetLimit <= 0) return;
+      
+      // Calculate current total for this category (before adding new amount)
+      final currentTotal = danhSachChi.fold(0, (sum, item) => sum + item.soTien);
+      
+      // Check thresholds
+      await notificationService.checkBudgetThresholds(
+        categoryName: widget.muc.ten,
+        currentTotal: currentTotal,
+        newAmount: newAmount,
+        budgetLimit: budgetLimit,
+      );
+    } catch (e) {
+      debugPrint('[BudgetNotification] Error: $e');
     }
   }
 

@@ -44,6 +44,182 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     super.dispose();
   }
 
+  /// Show bottom sheet with daily breakdown for a category
+  void _showCategoryBreakdown(BuildContext context, ChiTieuMuc category, String currentMonthKey, String todayDayKey) {
+    // Collect all transactions for this category in the current month
+    final List<Map<String, dynamic>> transactions = [];
+    
+    // Today's transactions
+    final todayItems = widget.chiTheoMuc[category] ?? <ChiTieuItem>[];
+    for (final item in todayItems) {
+      transactions.add({
+        'date': item.thoiGian,
+        'amount': item.soTien,
+        'name': item.tenChiTieu,
+        'dayKey': todayDayKey,
+      });
+    }
+    
+    // History transactions for current month
+    final currentMonthData = widget.lichSuThang[currentMonthKey];
+    if (currentMonthData != null) {
+      for (final dayEntry in currentMonthData.entries) {
+        if (dayEntry.key == todayDayKey) continue; // Already added today
+        for (final entry in dayEntry.value) {
+          if (entry.muc == category) {
+            transactions.add({
+              'date': entry.item.thoiGian,
+              'amount': entry.item.soTien,
+              'name': entry.item.tenChiTieu,
+              'dayKey': dayEntry.key,
+            });
+          }
+        }
+      }
+    }
+    
+    // Sort by date (newest first)
+    transactions.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+    
+    // Calculate total
+    final total = transactions.fold(0, (sum, t) => sum + (t['amount'] as int));
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: category.color.withOpacity(0.2),
+                      child: Icon(category.icon, color: category.color),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            category.ten,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            appLanguage == 'vi'
+                                ? 'Tháng ${widget.currentDay.month}/${widget.currentDay.year}'
+                                : '${getMonthName(widget.currentDay.month)} ${widget.currentDay.year}',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      formatAmountWithCurrency(total),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: expenseColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 24),
+              // Transaction list
+              Expanded(
+                child: transactions.isEmpty
+                    ? Center(
+                        child: Text(
+                          appLanguage == 'vi' ? 'Không có giao dịch' : 'No transactions',
+                          style: TextStyle(color: Colors.grey.shade500),
+                        ),
+                      )
+                    : ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: transactions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final t = transactions[index];
+                          final date = t['date'] as DateTime;
+                          final amount = t['amount'] as int;
+                          final name = t['name'] as String?;
+                          
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                color: category.color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${date.day}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: category.color,
+                                    ),
+                                  ),
+                                  Text(
+                                    appLanguage == 'vi' ? 'Th${date.month}' : getMonthName(date.month).substring(0, 3),
+                                    style: TextStyle(fontSize: 10, color: category.color),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            title: Text(
+                              name ?? category.ten,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            subtitle: Text(
+                              dinhDangGio(date),
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            ),
+                            trailing: Text(
+                              formatAmountWithCurrency(amount),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: expenseColor,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Calculate monthly expenses by category
@@ -182,20 +358,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           backgroundColor: Colors.grey.withOpacity(0.2),
                           valueColor: AlwaysStoppedAnimation<Color>(entry.key.color),
                         ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              formatAmountWithCurrency(entry.value),
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  formatAmountWithCurrency(entry.value),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor),
+                                ),
+                                Text(
+                                  '${percentage.toStringAsFixed(1)}%',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '${percentage.toStringAsFixed(1)}%',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.chevron_right, color: Colors.grey.shade400),
                           ],
                         ),
+                        onTap: () => _showCategoryBreakdown(context, entry.key, currentMonthKey, todayDayKey),
                       ),
                     );
                   }),

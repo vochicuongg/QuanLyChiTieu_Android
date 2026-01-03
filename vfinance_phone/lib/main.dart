@@ -17,6 +17,7 @@ import 'screens/statistics_screen.dart';
 import 'screens/budget_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // =================== GLOBAL STATE ===================
@@ -113,6 +114,11 @@ void main() async {
   
   // Initialize Firebase
   await Firebase.initializeApp();
+  
+  // Initialize notifications
+  await notificationService.initialize();
+  await notificationService.requestPermission();
+  await notificationService.clearOldNotifications();
   
   SharedPreferences.getInstance().then((prefs) {
     appPrefs = prefs;
