@@ -240,9 +240,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                     final subCategory = t['subCategory'] as String?;
                                     final name = t['name'] as String?;
                                     
-                                    final displayName = subCategory != null 
+                                    final displayName = name ?? (subCategory != null 
                                         ? getCategoryDisplayName(subCategory, appLanguage)
-                                        : (name ?? category.ten);
+                                        : category.ten);
                                     
                                     return ListTile(
                                       contentPadding: const EdgeInsets.only(left: 56, right: 16),

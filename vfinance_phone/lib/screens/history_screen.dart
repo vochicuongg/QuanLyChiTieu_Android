@@ -170,9 +170,9 @@ class HistoryScreen extends StatelessWidget {
                   size: 18,
                 ),
                 title: Text(
-                  e.item.subCategory != null 
+                  e.item.tenChiTieu ?? (e.item.subCategory != null 
                       ? getCategoryDisplayName(e.item.subCategory!, appLanguage)
-                      : (e.item.tenChiTieu ?? muc.ten),
+                      : muc.ten),
                   style: const TextStyle(fontSize: 13),
                 ),
                 subtitle: Text(dinhDangGio(e.item.thoiGian), style: const TextStyle(fontSize: 11)),

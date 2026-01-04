@@ -2,7 +2,7 @@ name: vfinance_phone
 description: "VFinance - Expense Management for Android Phone"
 publish_to: 'none'
 
-version: 1.0.2
+version: 1.0.3+1
 
 environment:
   sdk: ^3.10.4

@@ -129,6 +129,7 @@ class TransactionService {
     int? soTien,
     DateTime? thoiGian,
     String? ghiChu,
+    String? subCategory,
   }) async {
     final ref = _transactionsRef;
     if (ref == null) return;
@@ -140,6 +141,7 @@ class TransactionService {
     if (soTien != null) updateData['soTien'] = soTien;
     if (thoiGian != null) updateData['thoiGian'] = Timestamp.fromDate(thoiGian);
     if (ghiChu != null) updateData['ghiChu'] = ghiChu;
+    if (subCategory != null) updateData['subCategory'] = subCategory;
 
     await ref.doc(docId).update(updateData);
   }

@@ -53,10 +53,10 @@ final List<ExpenseCategory> expenseCategories = [
     icon: Icons.home_rounded,
     color: Colors.blue,
     subCategories: [
-      ExpenseSubCategory(id: 'tienTro', nameVi: 'Tiền trọ', nameEn: 'Rent', icon: Icons.house_rounded),
+      ExpenseSubCategory(id: 'tienNha', nameVi: 'Tiền nhà', nameEn: 'Rent', icon: Icons.house_rounded),
       ExpenseSubCategory(id: 'tienDien', nameVi: 'Tiền điện', nameEn: 'Electricity', icon: Icons.flash_on_rounded),
       ExpenseSubCategory(id: 'tienNuoc', nameVi: 'Tiền nước', nameEn: 'Water', icon: Icons.water_drop_rounded),
-      ExpenseSubCategory(id: 'wifi', nameVi: 'WiFi/Internet', nameEn: 'WiFi', icon: Icons.wifi_rounded),
+      ExpenseSubCategory(id: 'wifi', nameVi: 'Wi-Fi/Internet', nameEn: 'Wi-Fi/Internet', icon: Icons.wifi_rounded),
       ExpenseSubCategory(id: 'khacNhaO', nameVi: 'Khác', nameEn: 'Other', icon: Icons.more_horiz_rounded),
     ],
   ),

@@ -34,8 +34,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadVersion() async {
     final packageInfo = await PackageInfo.fromPlatform();
+    var version = packageInfo.version;
+    const suffix = '.adr-vochicuongg';
+    if (!version.endsWith(suffix)) {
+      version += suffix;
+    }
     if (mounted) {
-      setState(() => _appVersion = packageInfo.version);
+      setState(() => _appVersion = version);
     }
   }
 

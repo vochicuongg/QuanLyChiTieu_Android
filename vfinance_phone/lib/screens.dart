@@ -330,16 +330,18 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     // Extract amount from result (can be Map or int)
     int? soTien;
     String? subCategory;
+    String? tenChiTieu;
     if (result is Map) {
       soTien = result['amount'] as int?;
       subCategory = result['category'] as String?;
+      tenChiTieu = result['name'] as String?;
     } else if (result is int) {
       soTien = result;
     }
 
     if (soTien != null && soTien > 0) {
       final now = DateTime.now();
-      final newItem = ChiTieuItem(soTien: soTien, thoiGian: now, subCategory: subCategory);
+      final newItem = ChiTieuItem(soTien: soTien, thoiGian: now, subCategory: subCategory, tenChiTieu: tenChiTieu);
       
       // Check budget thresholds before adding (only for logged-in users)
       if (transactionService.isLoggedIn) {
@@ -358,6 +360,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
           soTien: soTien,
           thoiGian: now,
           subCategory: subCategory,
+          ghiChu: tenChiTieu,
         );
       } else {
         widget.onDataChanged?.call(danhSachChi);
@@ -401,17 +404,49 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
   }
 
   Future<void> chinhSuaChiTieu(int index) async {
-    final soTienMoi = await Navigator.push<int>(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => NhapSoTienScreen(soTienBanDau: danhSachChi[index].soTien),
+        builder: (_) => NhapSoTienScreen(
+          soTienBanDau: danhSachChi[index].soTien,
+          initialCategory: danhSachChi[index].subCategory,
+          parentCategoryId: widget.muc.name,
+          tenBanDau: danhSachChi[index].tenChiTieu,
+        ),
       ),
     );
+
+    // Extract result (can be Map or int) - matched logic with themChiTieu
+    int? soTienMoi;
+    String? subCategoryMoi;
+    String? tenChiTieuMoi;
+
+    if (result is Map) {
+      soTienMoi = result['amount'] as int?;
+      subCategoryMoi = result['category'] as String?;
+      tenChiTieuMoi = result['name'] as String?;
+    } else if (result is int) {
+      soTienMoi = result;
+    }
 
     if (soTienMoi != null && soTienMoi > 0) {
       final item = danhSachChi[index];
       final now = DateTime.now();
-      final updatedItem = item.copyWith(soTien: soTienMoi, thoiGian: now);
+      // Keep old values if not updated (though result usually has them if picker is used)
+      // Actually if result is int, subCategory and name are null, but we should probably keep old ones?
+      // Wait, if result is int (from simple input without picker changes?), it means user didn't change category.
+      // usages of NhapSoTienScreen logic suggests if showCategoryPicker is true, it returns Map if category selected.
+      
+      // If user didn't change category (result is int), keep old subCategory/name
+      final finalSubCategory = (result is Map) ? subCategoryMoi : item.subCategory;
+      final finalTenChiTieu = (result is Map) ? tenChiTieuMoi : item.tenChiTieu;
+
+      final updatedItem = item.copyWith(
+        soTien: soTienMoi, 
+        thoiGian: now,
+        subCategory: finalSubCategory,
+        tenChiTieu: finalTenChiTieu,
+      );
       
       // Optimistic UI update for immediate feedback
       setState(() {
@@ -419,13 +454,14 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
       });
       
       // Cloud First: When logged in, update Firestore (main screen listens to stream)
-      // When guest mode, use local callback
       if (transactionService.isLoggedIn) {
         if (item.id != null) {
           transactionService.update(
             item.id!,
             soTien: soTienMoi,
             thoiGian: now,
+            subCategory: finalSubCategory,
+            ghiChu: finalTenChiTieu,
           );
         }
       } else {
@@ -536,10 +572,10 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
               const SizedBox(height: 24),
               
               if (danhSachChi.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text('Chưa có chi tiêu nào', style: TextStyle(color: Colors.white54)),
+                    child: Text(appLanguage == 'vi' ? 'Chưa có chi tiêu nào' : 'No expenses yet', style: TextStyle(color: Colors.white54)),
                   ),
                 )
               else
@@ -569,7 +605,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
                           children: [
                             if (item.subCategory != null)
                               Text(
-                                getCategoryDisplayName(item.subCategory!, appLanguage),
+                                item.tenChiTieu ?? getCategoryDisplayName(item.subCategory!, appLanguage),
                                 style: TextStyle(
                                   color: widget.muc.color,
                                   fontWeight: FontWeight.w500,
@@ -873,6 +909,7 @@ class NhapSoTienScreen extends StatefulWidget {
   final String? initialCategory; // Optional initial category path
   final String? parentCategoryId; // Parent category for subcategory picker
   final bool showCategoryPicker; // Whether to show category selector
+  final String? tenBanDau; // Initial name/note
   
   const NhapSoTienScreen({
     super.key, 
@@ -880,6 +917,7 @@ class NhapSoTienScreen extends StatefulWidget {
     this.initialCategory,
     this.parentCategoryId,
     this.showCategoryPicker = true,
+    this.tenBanDau,
   });
 
   @override
@@ -888,8 +926,17 @@ class NhapSoTienScreen extends StatefulWidget {
 
 class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   String? _selectedCategory;
   bool _isNavigating = false; // Prevent double navigation
+
+  bool get _isOtherCategory {
+    if (_selectedCategory == null) return false;
+    final parts = _selectedCategory!.split('.');
+    if (parts.length < 2) return false;
+    // Check if subId contains "khac" (e.g. khacNhaO, khac...)
+    return parts[1].toLowerCase().contains('khac');
+  }
 
   @override
   void initState() {
@@ -897,12 +944,16 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
     if (widget.soTienBanDau != null) {
       _controller.text = widget.soTienBanDau.toString();
     }
+    if (widget.tenBanDau != null) {
+      _nameController.text = widget.tenBanDau!;
+    }
     _selectedCategory = widget.initialCategory;
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -917,7 +968,12 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
       _isNavigating = true;
       // Return both amount and category if category picker is enabled
       if (widget.showCategoryPicker && _selectedCategory != null) {
-        Navigator.pop(context, {'amount': soTien, 'category': _selectedCategory});
+        String? name;
+        if (_isOtherCategory) {
+          name = _nameController.text.trim();
+          if (name.isEmpty) name = null;
+        }
+        Navigator.pop(context, {'amount': soTien, 'category': _selectedCategory, 'name': name});
       } else {
         Navigator.pop(context, soTien);
       }
@@ -1010,6 +1066,23 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
               ),
               const SizedBox(height: 20),
             ],
+            // Custom Name input for Other categories
+            if (widget.showCategoryPicker && _isOtherCategory) ...[
+               TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: appLanguage == 'vi' ? 'Tên khoản chi' : 'Expense Name',
+                  hintText: appLanguage == 'vi' ? 'Ví dụ: Mua quà sinh nhật' : 'Ex: Birthday gift',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark 
+                      ? const Color(0xFF2D2D3F) 
+                      : Colors.grey[200],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+            
             // Amount input
             TextField(
               controller: _controller,
