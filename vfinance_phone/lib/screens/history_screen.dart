@@ -98,8 +98,30 @@ class HistoryScreen extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             const Spacer(),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              if (totalExpense > 0) Text(formatAmountWithCurrency(totalExpense), style: const TextStyle(color: expenseColor, fontSize: 13, fontWeight: FontWeight.bold)),
-              if (totalIncome > 0) Text(formatAmountWithCurrency(totalIncome), style: const TextStyle(color: incomeColor, fontSize: 13, fontWeight: FontWeight.bold)),
+              if (totalExpense > 0) Text(formatAmountWithCurrency(totalExpense), style: TextStyle(
+                color: expenseColor, 
+                fontSize: 13, 
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    offset: const Offset(0, 0.5),
+                    blurRadius: 1,
+                  ),
+                ],
+              )),
+              if (totalIncome > 0) Text(formatAmountWithCurrency(totalIncome), style: TextStyle(
+                color: incomeColor, 
+                fontSize: 13, 
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    offset: const Offset(0, 0.5),
+                    blurRadius: 1,
+                  ),
+                ],
+              )),
             ]),
           ]),
           children: sortedDays.map((dayKey) => _buildDayTile(context, daysData[dayKey]!, dayKey)).toList(),
@@ -135,8 +157,30 @@ class HistoryScreen extends StatelessWidget {
           Text(appLanguage == 'vi' ? 'Ngày ${dayKey.split('/')[0]}' : getOrdinalSuffix(int.parse(dayKey.split('/')[0]))),
           const Spacer(),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (dayExpense > 0) Text(formatAmountWithCurrency(dayExpense), style: const TextStyle(color: expenseColor, fontSize: 12, fontWeight: FontWeight.bold)),
-            if (dayIncome > 0) Text(formatAmountWithCurrency(dayIncome), style: const TextStyle(color: incomeColor, fontSize: 12, fontWeight: FontWeight.bold)),
+            if (dayExpense > 0) Text(formatAmountWithCurrency(dayExpense), style: TextStyle(
+              color: expenseColor, 
+              fontSize: 12, 
+              fontWeight: FontWeight.bold,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withOpacity(0.3),
+                  offset: const Offset(0, 0.5),
+                  blurRadius: 1,
+                ),
+              ],
+            )),
+            if (dayIncome > 0) Text(formatAmountWithCurrency(dayIncome), style: TextStyle(
+              color: incomeColor, 
+              fontSize: 12, 
+              fontWeight: FontWeight.bold,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withOpacity(0.3),
+                  offset: const Offset(0, 0.5),
+                  blurRadius: 1,
+                ),
+              ],
+            )),
           ]),
         ]),
         children: sortedCategories.map((muc) {
@@ -158,6 +202,13 @@ class HistoryScreen extends StatelessWidget {
                   color: muc == ChiTieuMuc.soDu ? incomeColor : expenseColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.3),
+                      offset: const Offset(0, 0.5),
+                      blurRadius: 1,
+                    ),
+                  ],
                 ),
               ),
               children: categoryItems.map((e) => ListTile(
@@ -182,6 +233,13 @@ class HistoryScreen extends StatelessWidget {
                     color: muc == ChiTieuMuc.soDu ? incomeColor : expenseColor,
                     fontWeight: FontWeight.w500,
                     fontSize: 12,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.3),
+                        offset: const Offset(0, 0.5),
+                        blurRadius: 1,
+                      ),
+                    ],
                   ),
                 ),
               )).toList(),

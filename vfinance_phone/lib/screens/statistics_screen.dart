@@ -25,6 +25,10 @@ class StatisticsScreen extends StatefulWidget {
 class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _animation;
+  
+  int _touchedIndex = -1;
+  final ScrollController _scrollController = ScrollController();
+  final Map<ChiTieuMuc, GlobalKey> _itemKeys = {};
 
   @override
   void initState() {
@@ -51,13 +55,27 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     if (widget.isVisible && !oldWidget.isVisible) {
       _animationController.reset();
       _animationController.forward();
+      _touchedIndex = -1; // Reset selection
     }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToCategory(ChiTieuMuc category) {
+    final key = _itemKeys[category];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.5, // Center the item
+      );
+    }
   }
 
   /// Show bottom sheet with daily breakdown for a category
@@ -143,13 +161,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         children: [
                           Text(
                             category.ten,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
                           ),
                           Text(
                             appLanguage == 'vi'
                                 ? 'Tháng ${widget.currentDay.month}/${widget.currentDay.year}'
                                 : '${getMonthName(widget.currentDay.month)} ${widget.currentDay.year}',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13.0),
                           ),
                         ],
                       ),
@@ -157,7 +175,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     Text(
                       formatAmountWithCurrency(total),
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 18.0,
                         fontWeight: FontWeight.bold,
                         color: expenseColor,
                       ),
@@ -217,22 +235,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                       children: [
                                         Text(
                                           dayParts[0],
-                                          style: TextStyle(fontWeight: FontWeight.bold, color: category.color, fontSize: 14),
+                                          style: TextStyle(fontWeight: FontWeight.bold, color: category.color, fontSize: 14.0),
                                         ),
                                         Text(
                                           appLanguage == 'vi' ? 'Th${dayParts[1]}' : getMonthName(int.parse(dayParts[1])).substring(0, 3),
-                                          style: TextStyle(fontSize: 9, color: category.color),
+                                          style: TextStyle(fontSize: 9.0, color: category.color),
                                         ),
                                       ],
                                     ),
                                   ),
                                   title: Text(
                                     appLanguage == 'vi' ? 'Ngày ${dayParts[0]}' : getOrdinalSuffix(int.parse(dayParts[0])),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.0),
                                   ),
                                   trailing: Text(
                                     formatAmountWithCurrency(dayTotal),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor, fontSize: 13),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor, fontSize: 13.0),
                                   ),
                                   children: dayItems.map((t) {
                                     final date = t['date'] as DateTime;
@@ -251,11 +269,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                         color: category.color,
                                         size: 18,
                                       ),
-                                      title: Text(displayName, style: const TextStyle(fontSize: 13)),
-                                      subtitle: Text(dinhDangGio(date), style: const TextStyle(fontSize: 11)),
+                                      title: Text(displayName, style: const TextStyle(fontSize: 13.0)),
+                                      subtitle: Text(dinhDangGio(date), style: const TextStyle(fontSize: 11.0)),
                                       trailing: Text(
                                         formatAmountWithCurrency(amount),
-                                        style: const TextStyle(fontWeight: FontWeight.w500, color: expenseColor, fontSize: 12),
+                                        style: const TextStyle(fontWeight: FontWeight.w500, color: expenseColor, fontSize: 12.0),
                                       ),
                                     );
                                   }).toList(),
@@ -343,7 +361,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   ),
                   Text(
                     formatAmountWithCurrency(totalExpenses),
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: expenseColor),
+                    style: TextStyle(fontSize: 28, 
+                    fontWeight: FontWeight.bold, 
+                    color: expenseColor,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
+                        offset: const Offset(0, 0.5),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
+                        blurRadius: 0.5,                        // Độ nhòe của bóng
+                      ),
+                    ],
+                    ),
                   ),
                   
                   const SizedBox(height: 32),
@@ -355,36 +383,87 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    height: 200,
+                    height: 250,
                     child: AnimatedBuilder(
                       animation: _animation,
                       builder: (context, child) {
                         return PieChart(
                           PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 40,
+                            pieTouchData: PieTouchData(
+                              touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                                setState(() {
+                                  // We only care about TapUp (lifting finger after tap)
+                                  if (event is FlTapUpEvent) {
+                                    final touchedSection = pieTouchResponse?.touchedSection;
+                                    
+                                    if (touchedSection != null && touchedSection.touchedSectionIndex != -1) {
+                                      // Valid section tapped
+                                      final newIndex = touchedSection.touchedSectionIndex;
+                                      
+                                      if (newIndex >= 0 && newIndex < sortedCategories.length) {
+                                        if (_touchedIndex == newIndex) {
+                                          // Tapped the same section again -> Deselect
+                                          _touchedIndex = -1;
+                                        } else {
+                                          // New section -> Select and scroll
+                                          _touchedIndex = newIndex;
+                                          _scrollToCategory(sortedCategories[newIndex].key);
+                                        }
+                                      }
+                                    } else {
+                                      // Tapped outside or null section -> Deselect
+                                      _touchedIndex = -1;
+                                    }
+                                  }
+                                });
+                              },
+                            ),
+                            sectionsSpace: 1,
+                            centerSpaceRadius: 65,
                             // Rotate from -90 to 270 degrees (360 degree rotation)
-                            startDegreeOffset: -90.0 + (360.0 * _animation.value),
-                            sections: sortedCategories.map((entry) {
-                              final percentage = (entry.value / totalExpenses * 100);
+                            startDegreeOffset: -360.0 + (360.0 * _animation.value),
+                            sections: sortedCategories.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final data = entry.value;
+                              final isTouched = index == _touchedIndex;
+                              final percentage = (data.value / totalExpenses * 100);
                               
-                              // All sections animate radius together
-                              final animatedRadius = 50.0 * _animation.value;
+                              // All sections animate radius together, touched is bigger
+                              final baseRadius = 60.0 * _animation.value;
+                              final radius = isTouched ? baseRadius + 10 : baseRadius;
+                              
+                              // Fade in text starting from 50% animation
+                              final opacity = ((_animation.value - 0.5) * 2.0).clamp(0.0, 1.0);
                               
                               return PieChartSectionData(
-                                color: entry.key.color,
-                                value: entry.value.toDouble(),
-                                title: _animation.value > 0.8 ? '${percentage.toStringAsFixed(0)}%' : '',
-                                radius: animatedRadius,
-                                titleStyle: const TextStyle(
-                                  fontSize: 12,
+                                color: data.key.color,
+                                value: data.value.toDouble(),
+                                title: '${percentage.toStringAsFixed(1)}%',
+                                radius: radius,
+                                titleStyle: TextStyle( 
+                                  fontSize: isTouched ? 16 : 14,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Colors.white.withOpacity(opacity),
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.5 * opacity), 
+                                      offset: const Offset(1, 1),
+                                      blurRadius: 1,
+                                    ),
+                                  ],
                                 ),
+                                borderSide: isTouched 
+                                    ? const BorderSide(color: Colors.white, width: 2)
+                                    : BorderSide.none,
                               );
                             }).toList(),
                           ),
-                          swapAnimationDuration: Duration.zero,
+                          // Use zero duration for entrance animation to avoid conflict with AnimatedBuilder
+                          // Use smooth duration for selection interactions
+                          swapAnimationDuration: _animationController.isAnimating 
+                              ? Duration.zero 
+                              : const Duration(milliseconds: 250),
+                          swapAnimationCurve: Curves.easeInOut,
                         );
                       },
                     ),
@@ -400,14 +479,39 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   const SizedBox(height: 12),
                   ...sortedCategories.map((entry) {
                     final percentage = (entry.value / totalExpenses * 100);
+                    final isHighlighted = _touchedIndex != -1 && 
+                                        sortedCategories[_touchedIndex].key == entry.key;
+                                        
+                    // Assign key for scrolling
+                    if (!_itemKeys.containsKey(entry.key)) {
+                      _itemKeys[entry.key] = GlobalKey();
+                    }
+                    
                     return Card(
+                      key: _itemKeys[entry.key],
                       margin: const EdgeInsets.only(bottom: 8),
+                      elevation: isHighlighted ? 4 : 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: isHighlighted 
+                            ? BorderSide(color: entry.key.color, width: 2)
+                            : BorderSide.none,
+                      ),
+                      color: isHighlighted 
+                          ? entry.key.color.withOpacity(0.05)
+                          : Theme.of(context).cardColor,
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: entry.key.color.withOpacity(0.2),
                           child: Icon(entry.key.icon, color: entry.key.color, size: 20),
                         ),
-                        title: Text(entry.key.ten, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        title: Text(
+                          entry.key.ten, 
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isHighlighted ? entry.key.color : null,
+                          ),
+                        ),
                         subtitle: LinearProgressIndicator(
                           value: percentage / 100,
                           backgroundColor: Colors.grey.withOpacity(0.2),
@@ -422,7 +526,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                               children: [
                                 Text(
                                   formatAmountWithCurrency(entry.value),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: expenseColor),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold, 
+                                    color: expenseColor,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
+                                        offset: const Offset(0, 0.2),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
+                                        blurRadius: 0.5,                        // Độ nhòe của bóng
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 Text(
                                   '${percentage.toStringAsFixed(1)}%',

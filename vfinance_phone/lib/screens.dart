@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main.dart';
@@ -7,6 +8,8 @@ import 'services/transaction_service.dart'; // Cloud First
 import 'services/notification_service.dart'; // Budget notifications
 import 'models/expense_categories.dart'; // Hierarchical categories
 import 'widgets/category_picker.dart'; // Category picker dialog
+import 'widgets/num_pad.dart'; // Custom numeric keypad
+import 'widgets/custom_keyboard.dart'; // Custom alphabetic keypad
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 
@@ -240,7 +243,7 @@ class _SoDuScreenState extends State<SoDuScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(32),
                     child: Text(appLanguage == 'vi' ? 'Chưa có thu nhập nào' : 'No income yet', 
-                    style: TextStyle(color: Colors.white54)),
+                    style: const TextStyle(color: Colors.grey)),
                   ),
                 )
               else
@@ -575,7 +578,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
                 Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text(appLanguage == 'vi' ? 'Chưa có chi tiêu nào' : 'No expenses yet', style: TextStyle(color: Colors.white54)),
+                    child: Text(appLanguage == 'vi' ? 'Chưa có chi tiêu nào' : 'No expenses yet', style: const TextStyle(color: Colors.grey)),
                   ),
                 )
               else
@@ -840,7 +843,7 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                     const SizedBox(height: 8),
                     Text(
                       formatAmountWithCurrency(tongChi),
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: const TextStyle(fontSize: 28.0, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -854,7 +857,7 @@ class _KhacTheoMucScreenState extends State<KhacTheoMucScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(32),
                     child: Text(appLanguage == 'vi' ? 'Chưa có chi tiêu nào' : 'No expenses yet', 
-                    style: TextStyle(color: Colors.white54)),
+                    style: const TextStyle(color: Colors.grey)),
                   ),
                 )
               else
@@ -927,6 +930,10 @@ class NhapSoTienScreen extends StatefulWidget {
 class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   final TextEditingController _controller = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final FocusNode _amountFocus = FocusNode();
+  final FocusNode _nameFocus = FocusNode();
+  String _activeField = 'amount'; // 'amount' or 'name'
+
   String? _selectedCategory;
   bool _isNavigating = false; // Prevent double navigation
 
@@ -942,18 +949,33 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   void initState() {
     super.initState();
     if (widget.soTienBanDau != null) {
-      _controller.text = widget.soTienBanDau.toString();
+      _controller.text = formatNumberWithDots(widget.soTienBanDau!);
     }
     if (widget.tenBanDau != null) {
       _nameController.text = widget.tenBanDau!;
     }
     _selectedCategory = widget.initialCategory;
+    
+    // Listen for focus changes
+    _amountFocus.addListener(() {
+      if (_amountFocus.hasFocus) {
+        setState(() => _activeField = 'amount');
+      }
+    });
+    
+    _nameFocus.addListener(() {
+      if (_nameFocus.hasFocus) {
+        setState(() => _activeField = 'name');
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _nameController.dispose();
+    _amountFocus.dispose();
+    _nameFocus.dispose();
     super.dispose();
   }
 
@@ -1009,113 +1031,159 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
     
     return Scaffold(
       appBar: AppBar(title: Text(isVi ? 'Nhập số tiền' : 'Enter amount')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Category selector (if enabled)
-            if (widget.showCategoryPicker) ...[
-              InkWell(
-                onTap: _pickCategory,
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark 
-                        ? const Color(0xFF2D2D3F) 
-                        : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _selectedCategory != null 
-                          ? getCategoryColor(_selectedCategory!) 
-                          : Colors.grey.shade400,
-                      width: 2,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selectedCategory != null 
-                            ? getCategoryIcon(_selectedCategory!)
-                            : Icons.category_outlined,
-                        color: _selectedCategory != null 
-                            ? getCategoryColor(_selectedCategory!)
-                            : Colors.grey,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _selectedCategory != null 
-                              ? getCategoryDisplayName(_selectedCategory!, appLanguage)
-                              : (isVi ? 'Chọn danh mục' : 'Select category'),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Category selector (if enabled)
+                  if (widget.showCategoryPicker) ...[
+                    InkWell(
+                      onTap: _pickCategory,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? const Color(0xFF2D2D3F) 
+                              : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
                             color: _selectedCategory != null 
-                                ? null 
-                                : Colors.grey,
+                                ? getCategoryColor(_selectedCategory!) 
+                                : Colors.grey.shade400,
+                            width: 2,
                           ),
                         ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _selectedCategory != null 
+                                  ? getCategoryIcon(_selectedCategory!)
+                                  : Icons.category_outlined,
+                              color: _selectedCategory != null 
+                                  ? getCategoryColor(_selectedCategory!)
+                                  : Colors.grey,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _selectedCategory != null 
+                                    ? getCategoryDisplayName(_selectedCategory!, appLanguage)
+                                    : (isVi ? 'Chọn danh mục' : 'Select category'),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedCategory != null 
+                                      ? null 
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right, color: Colors.grey),
+                          ],
+                        ),
                       ),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
-                    ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  // Custom Name input for Other categories
+                  if (widget.showCategoryPicker && _isOtherCategory) ...[
+                     TextField(
+                      controller: _nameController,
+                      focusNode: _nameFocus,
+                      // readOnly: false, // Default is false, enable system keyboard
+                      showCursor: true,
+                      decoration: InputDecoration(
+                        labelText: appLanguage == 'vi' ? 'Tên khoản chi' : 'Expense Name',
+                        hintText: appLanguage == 'vi' ? 'Ví dụ: Mua quà sinh nhật' : 'Ex: Birthday gift',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2D2D3F) 
+                            : Colors.grey[200],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  
+                  // Amount input
+                  TextField(
+                    controller: _controller,
+                    focusNode: _amountFocus,
+                    readOnly: true, // Disable system keyboard
+                    showCursor: true,
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        hintText: '0',
+                        suffixText: '₫',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2D2D3F) 
+                            : Colors.grey[200],
+                      ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-            // Custom Name input for Other categories
-            if (widget.showCategoryPicker && _isOtherCategory) ...[
-               TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: appLanguage == 'vi' ? 'Tên khoản chi' : 'Expense Name',
-                  hintText: appLanguage == 'vi' ? 'Ví dụ: Mua quà sinh nhật' : 'Ex: Birthday gift',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                  filled: true,
-                  fillColor: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2D2D3F) 
-                      : Colors.grey[200],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-            
-            // Amount input
-            TextField(
-              controller: _controller,
-              keyboardType: TextInputType.number,
-              autofocus: !widget.showCategoryPicker,
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: '0',
-                  suffixText: '₫',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                  filled: true,
-                  fillColor: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2D2D3F) 
-                      : Colors.grey[200],
-                ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _xacNhan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C5CE7),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text(isVi ? 'Xác nhận' : 'Confirm', 
-                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _xacNhan,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C5CE7),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(isVi ? 'Xác nhận' : 'Confirm', 
+                      style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          // Custom Keyboards
+          // Only show NumPad if _activeField is 'amount'
+          if (_activeField == 'amount')
+            NumPad(
+              onInput: (val) {
+                String currentText = _controller.text.replaceAll('.', '');
+                if (val == '000') {
+                  if (currentText.isNotEmpty) currentText += '000';
+                } else {
+                  currentText += val;
+                }
+                
+                if (currentText.length > 15) return;
+                
+                final number = int.tryParse(currentText);
+                if (number != null) {
+                  _controller.text = formatNumberWithDots(number);
+                }
+              },
+              onDelete: () {
+                String currentText = _controller.text.replaceAll('.', '');
+                if (currentText.isEmpty) return;
+                
+                currentText = currentText.substring(0, currentText.length - 1);
+                
+                if (currentText.isEmpty) {
+                  _controller.text = '';
+                } else {
+                  final number = int.tryParse(currentText);
+                  if (number != null) {
+                    _controller.text = formatNumberWithDots(number);
+                  }
+                }
+              },
+            ),
+          // Removed the else block that contained CustomKeyboard for _nameController
+        ],
       ),
     );
   }
@@ -1135,6 +1203,9 @@ class NhapSoDuScreen extends StatefulWidget {
 class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
   final TextEditingController _tenController = TextEditingController();
   final TextEditingController _soTienController = TextEditingController();
+  final FocusNode _tenFocus = FocusNode();
+  final FocusNode _soTienFocus = FocusNode();
+  String _activeField = 'ten';
 
   @override
   void initState() {
@@ -1143,8 +1214,16 @@ class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
       _tenController.text = widget.tenBanDau!;
     }
     if (widget.soTienBanDau != null) {
-      _soTienController.text = widget.soTienBanDau.toString();
+      _soTienController.text = formatNumberWithDots(widget.soTienBanDau!);
     }
+    
+    _tenFocus.addListener(() {
+      if (_tenFocus.hasFocus) setState(() => _activeField = 'ten');
+    });
+    
+    _soTienFocus.addListener(() {
+      if (_soTienFocus.hasFocus) setState(() => _activeField = 'soTien');
+    });
   }
 
   void _xacNhan() {
@@ -1163,6 +1242,8 @@ class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
   void dispose() {
     _tenController.dispose();
     _soTienController.dispose();
+    _tenFocus.dispose();
+    _soTienFocus.dispose();
     super.dispose();
   }
 
@@ -1170,12 +1251,18 @@ class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Thêm số dư' : 'Add Balance')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            TextField(
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  TextField(
               controller: _tenController,
+              focusNode: _tenFocus,
+              // readOnly: false, // Default is false, enable system keyboard
+              showCursor: true,
               autofocus: true,
               decoration: InputDecoration(
                 labelText: appLanguage == 'vi' ? 'Tên số dư (tùy chọn)' : 'Balance Name (optional)',
@@ -1190,32 +1277,76 @@ class _NhapSoDuScreenState extends State<NhapSoDuScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _soTienController,
+              focusNode: _soTienFocus,
               keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
-                  suffixText: '₫',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  filled: true,
-                  fillColor: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2D2D3F) 
-                      : Colors.grey[200],
-                ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _xacNhan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF93),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+              readOnly: true,
+              showCursor: true,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      ThousandsSeparatorInputFormatter(),
+                    ],
+                      decoration: InputDecoration(
+                        labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
+                        suffixText: '₫',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2D2D3F) 
+                            : Colors.grey[200],
+                      ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _xacNhan,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF93),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(appLanguage == 'vi' ? 'Xác nhận' : 'Confirm', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          if (_activeField == 'soTien')
+            NumPad(
+              onInput: (val) {
+                String currentText = _soTienController.text.replaceAll('.', '');
+                if (val == '000') {
+                  if (currentText.isNotEmpty) currentText += '000';
+                } else {
+                  currentText += val;
+                }
+                
+                if (currentText.length > 15) return;
+                
+                final number = int.tryParse(currentText);
+                if (number != null) {
+                  _soTienController.text = formatNumberWithDots(number);
+                }
+              },
+              onDelete: () {
+                String currentText = _soTienController.text.replaceAll('.', '');
+                if (currentText.isEmpty) return;
+                
+                currentText = currentText.substring(0, currentText.length - 1);
+                
+                if (currentText.isEmpty) {
+                  _soTienController.text = '';
+                } else {
+                  final number = int.tryParse(currentText);
+                  if (number != null) {
+                    _soTienController.text = formatNumberWithDots(number);
+                  }
+                }
+              },
+            )
+          // Removed the else block that contained CustomKeyboard for _tenController
+        ],
       ),
     );
   }
@@ -1235,6 +1366,9 @@ class NhapKhacScreen extends StatefulWidget {
 class _NhapKhacScreenState extends State<NhapKhacScreen> {
   final TextEditingController _tenController = TextEditingController();
   final TextEditingController _soTienController = TextEditingController();
+  final FocusNode _tenFocus = FocusNode();
+  final FocusNode _soTienFocus = FocusNode();
+  String _activeField = 'ten';
 
   @override
   void initState() {
@@ -1243,8 +1377,16 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
       _tenController.text = widget.tenBanDau!;
     }
     if (widget.soTienBanDau != null) {
-      _soTienController.text = widget.soTienBanDau.toString();
+      _soTienController.text = formatNumberWithDots(widget.soTienBanDau!);
     }
+    
+    _tenFocus.addListener(() {
+      if (_tenFocus.hasFocus) setState(() => _activeField = 'ten');
+    });
+    
+    _soTienFocus.addListener(() {
+      if (_soTienFocus.hasFocus) setState(() => _activeField = 'soTien');
+    });
   }
 
   void _xacNhan() {
@@ -1264,6 +1406,8 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
   void dispose() {
     _tenController.dispose();
     _soTienController.dispose();
+    _tenFocus.dispose();
+    _soTienFocus.dispose();
     super.dispose();
   }
 
@@ -1271,51 +1415,100 @@ class _NhapKhacScreenState extends State<NhapKhacScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(appLanguage == 'vi' ? 'Thêm chi tiêu khác' : 'Add Other Expense')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            TextField(
-              controller: _tenController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: appLanguage == 'vi' ? 'Tên chi tiêu' : 'Expense Name',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark 
-                    ? const Color(0xFF2D2D3F) 
-                    : Colors.grey[200],
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _tenController,
+                    focusNode: _tenFocus,
+                    // readOnly: false, // Default is false, enable system keyboard
+                    showCursor: true,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: appLanguage == 'vi' ? 'Tên chi tiêu' : 'Expense Name',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark 
+                          ? const Color(0xFF2D2D3F) 
+                          : Colors.grey[200],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _soTienController,
+                    focusNode: _soTienFocus,
+                    keyboardType: TextInputType.number,
+                    readOnly: true,
+                    showCursor: true,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      ThousandsSeparatorInputFormatter(),
+                    ],
+                      decoration: InputDecoration(
+                        labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
+                        suffixText: '₫',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2D2D3F) 
+                            : Colors.grey[200],
+                      ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _xacNhan,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C5CE7),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(appLanguage == 'vi' ? 'Thêm' : 'Add', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _soTienController,
-              keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: appLanguage == 'vi' ? 'Số tiền' : 'Amount',
-                  suffixText: '₫',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  filled: true,
-                  fillColor: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF2D2D3F) 
-                      : Colors.grey[200],
-                ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _xacNhan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C5CE7),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text(appLanguage == 'vi' ? 'Thêm' : 'Add', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
+          ),
+          if (_activeField == 'soTien')
+            NumPad(
+              onInput: (val) {
+                String currentText = _soTienController.text.replaceAll('.', '');
+                if (val == '000') {
+                  if (currentText.isNotEmpty) currentText += '000';
+                } else {
+                  currentText += val;
+                }
+                
+                if (currentText.length > 15) return;
+                
+                final number = int.tryParse(currentText);
+                if (number != null) {
+                  _soTienController.text = formatNumberWithDots(number);
+                }
+              },
+              onDelete: () {
+                String currentText = _soTienController.text.replaceAll('.', '');
+                if (currentText.isEmpty) return;
+                
+                currentText = currentText.substring(0, currentText.length - 1);
+                
+                if (currentText.isEmpty) {
+                  _soTienController.text = '';
+                } else {
+                  final number = int.tryParse(currentText);
+                  if (number != null) {
+                    _soTienController.text = formatNumberWithDots(number);
+                  }
+                }
+              },
+            )
+        ],
       ),
     );
   }
@@ -1418,12 +1611,12 @@ class _LichSuScreenState extends State<LichSuScreen> {
                             if (totalMonth > 0)
                               Text(
                                 formatAmountWithCurrency(totalMonth),
-                                style: const TextStyle(color: Color(0xFFF08080), fontSize: 13, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: Color(0xFFF08080), fontSize: 13.0, fontWeight: FontWeight.bold),
                               ),
                             if (totalMonthIncome > 0)
                               Text(
                                 formatAmountWithCurrency(totalMonthIncome),
-                                style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 13, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 13.0, fontWeight: FontWeight.bold),
                               ),
                           ],
                         ),
@@ -1449,15 +1642,15 @@ class _LichSuScreenState extends State<LichSuScreen> {
                                 if (dayTotal > 0)
                                   Text(
                                     formatAmountWithCurrency(dayTotal),
-                                    style: const TextStyle(color: Color(0xFFF08080), fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(color: Color(0xFFF08080), fontSize: 12.0, fontWeight: FontWeight.bold),
                                   ),
                                 if (dayTotalIncome > 0)
                                   Text(
                                     formatAmountWithCurrency(dayTotalIncome),
-                                    style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(color: Color(0xFF4CAF93), fontSize: 12.0, fontWeight: FontWeight.bold),
                                   ),
                                 if (dayTotalIncome == 0 && dayTotal == 0)
-                                   Text(formatAmountWithCurrency(0), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                   Text(formatAmountWithCurrency(0), style: const TextStyle(color: Colors.white70, fontSize: 12.0)),
                               ],
                             ),
                           ],
@@ -1528,11 +1721,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               title: Text(
                 authService.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'Guest'),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16.0),
               ),
               subtitle: Text(
                 authService.currentUser?.email ?? (appLanguage == 'vi' ? 'Chưa đăng nhập' : 'Not logged in'),
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 13.0),
               ),
             ),
           ),
@@ -1893,4 +2086,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+}
+
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (newText.isEmpty) return newValue.copyWith(text: '');
+    
+    // Parse to ensure valid number (remove leading zeros)
+    int value = int.tryParse(newText) ?? 0;
+    newText = value.toString();
+
+    final buffer = StringBuffer();
+    for (int i = 0; i < newText.length; i++) {
+      if (i > 0 && (newText.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(newText[i]);
+    }
+    
+    final formattedText = buffer.toString();
+    
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length), // Keeps cursor at end
+    );
+  }
+}
+
+String formatNumberWithDots(int number) {
+  final str = number.toString();
+  final buffer = StringBuffer();
+  for (int i = 0; i < str.length; i++) {
+    if (i > 0 && (str.length - i) % 3 == 0) {
+      buffer.write('.');
+    }
+    buffer.write(str[i]);
+  }
+  return buffer.toString();
 }

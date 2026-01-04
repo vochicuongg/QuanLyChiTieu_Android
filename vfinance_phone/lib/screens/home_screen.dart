@@ -88,7 +88,18 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Text(
                   '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'User')}.',
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white, 
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
+                        offset: const Offset(0, 1),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
+                        blurRadius: 1,                        // Độ nhòe của bóng
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -100,10 +111,17 @@ class HomeScreen extends StatelessWidget {
                   remaining >= 0
                       ? formatAmountWithCurrency(remaining)
                       : '-${formatAmountWithCurrency(remaining.abs())}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
+                        offset: const Offset(0, 1),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
+                        blurRadius: 1,                        // Độ nhòe của bóng
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -140,7 +158,18 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             formatAmountWithCurrency(tongHomNay),
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: expenseColor),
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: expenseColor,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
+                  offset: const Offset(0, 0.5),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
+                  blurRadius: 0.5,                        // Độ nhòe của bóng
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -217,8 +246,36 @@ class _BalanceInfo extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-            Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+            Text(
+              label, 
+              style: TextStyle(
+                color: Colors.white, 
+                fontSize: 14, 
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
+              )
+            ),
+            Text(
+              amount, 
+              style: TextStyle(
+                color: Colors.white, 
+                fontWeight: FontWeight.w600, 
+                fontSize: 14,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
+              )
+            ),
           ],
         ),
       ],

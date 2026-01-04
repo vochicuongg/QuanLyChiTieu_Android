@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../widgets/num_pad.dart';
 
 /// Budget Screen - Set spending limits and track progress per category
 class BudgetScreen extends StatefulWidget {
@@ -113,58 +114,177 @@ class _BudgetScreenState extends State<BudgetScreen> {
     return total;
   }
 
+  // Helper to format number with dots
+  String _formatNumberWithDots(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.'
+    );
+  }
+
   void _showBudgetDialog(ChiTieuMuc muc) {
-    final controller = TextEditingController(
-      text: _budgets[muc.name]?.toString() ?? '',
-    );
-    
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          appLanguage == 'vi' ? 'Đặt hạn mức cho ${muc.ten}' : 'Set budget for ${muc.ten}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: appLanguage == 'vi' ? 'Nhập hạn mức' : 'Enter budget',
-            prefixIcon: const Icon(Icons.account_balance_wallet),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        // Initialize state OUTSIDE StatefulBuilder to persist across rebuilds
+        String currentText = _budgets[muc.name]?.toString() ?? '';
+        if (currentText.isNotEmpty) {
+           final initialVal = int.tryParse(currentText);
+           if (initialVal != null) currentText = _formatNumberWithDots(initialVal);
+        }
+
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel'),
-          ),
-          if (_budgets.containsKey(muc.name))
-            TextButton(
-              onPressed: () {
-                setState(() => _budgets.remove(muc.name));
-                _saveBudgets();
-                Navigator.pop(context);
-              },
-              child: Text(
-                appLanguage == 'vi' ? 'Xóa' : 'Remove',
-                style: const TextStyle(color: Colors.red),
-              ),
-            ),
-          FilledButton(
-            onPressed: () {
-              final value = int.tryParse(controller.text);
-              if (value != null && value > 0) {
-                setState(() => _budgets[muc.name] = value);
-                _saveBudgets();
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+
+            void handleInput(String val) {
+              String rawText = currentText.replaceAll('.', '');
+              if (val == '000') {
+                 if (rawText.isNotEmpty) rawText += '000';
+              } else {
+                 rawText += val;
               }
-              Navigator.pop(context);
-            },
-            child: Text(appLanguage == 'vi' ? 'Lưu' : 'Save'),
-          ),
-        ],
-      ),
-    );
+              
+              if (rawText.length > 15) return;
+
+              final number = int.tryParse(rawText);
+              if (number != null) {
+                setSheetState(() {
+                  currentText = _formatNumberWithDots(number);
+                });
+              }
+            }
+
+            void handleDelete() {
+              String rawText = currentText.replaceAll('.', '');
+              if (rawText.isEmpty) return;
+              
+              rawText = rawText.substring(0, rawText.length - 1);
+              
+              setSheetState(() {
+                if (rawText.isEmpty) {
+                  currentText = '';
+                } else {
+                  final number = int.tryParse(rawText);
+                  if (number != null) {
+                    currentText = _formatNumberWithDots(number);
+                  }
+                }
+              });
+            }
+
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                   margin: const EdgeInsets.only(top: 8, bottom: 20),
+                   width: 40, 
+                   height: 4, 
+                   decoration: BoxDecoration(
+                     color: Colors.grey.withOpacity(0.3), 
+                     borderRadius: BorderRadius.circular(2)
+                   )
+                ),
+                
+                // Title
+                Text(
+                  appLanguage == 'vi' ? 'Đặt hạn mức cho ${muc.ten}' : 'Set budget for ${muc.ten}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Display Area
+                Text(
+                  appLanguage == 'vi' ? 'Nhập hạn mức' : 'Enter budget',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                     Icon(Icons.account_balance_wallet, size: 28, color: muc.color),
+                     const SizedBox(width: 12),
+                     Text(
+                       currentText.isEmpty ? '0' : currentText,
+                       style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                     ),
+                  ],
+                ),
+                
+                const Spacer(),
+                
+                // NumPad
+                NumPad(
+                  onInput: handleInput,
+                  onDelete: handleDelete,
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Action Buttons
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          appLanguage == 'vi' ? 'Hủy' : 'Cancel',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_budgets.containsKey(muc.name))
+                         TextButton(
+                          onPressed: () {
+                            setState(() => _budgets.remove(muc.name));
+                            _saveBudgets();
+                            Navigator.pop(context);
+                          },
+                          child: Text(
+                            appLanguage == 'vi' ? 'Xóa' : 'Delete',
+                            style: const TextStyle(color: Colors.red, fontSize: 16),
+                          ),
+                        ),
+                      const SizedBox(width: 16),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        ),
+                        onPressed: () {
+                          final value = int.tryParse(currentText.replaceAll('.', ''));
+                          if (value != null && value > 0) {
+                            setState(() => _budgets[muc.name] = value);
+                            _saveBudgets();
+                          }
+                          Navigator.pop(context);
+                        },
+                        child: Text(
+                          appLanguage == 'vi' ? 'Lưu' : 'Save', 
+                          style: const TextStyle(fontSize: 16)
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
+  );
   }
 
   @override
@@ -276,18 +396,38 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 ],
                               ),
                             ),
-                            if (isOverBudget)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  appLanguage == 'vi' ? 'VƯỢT MỨC!' : 'OVER!',
-                                  style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                              ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (isOverBudget)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      appLanguage == 'vi' ? 'VƯỢT MỨC!' : 'OVER!',
+                                      style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  )
+                                else ...[
+                                  Text(
+                                    appLanguage == 'vi' ? 'Còn lại' : 'Remaining',
+                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                  ),
+                                  Text(
+                                    formatAmountWithCurrency(budget - spent),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
