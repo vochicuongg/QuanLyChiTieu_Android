@@ -14,16 +14,16 @@ class NumPad extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8), // Reduced vertical padding
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildRow(context, ['1', '2', '3']),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10), // Reduced spacing
           _buildRow(context, ['4', '5', '6']),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
           _buildRow(context, ['7', '8', '9']),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
           _buildRow(context, ['0', '000', 'delete']),
         ],
       ),
@@ -43,9 +43,10 @@ class NumPad extends StatelessWidget {
   }
 
   Widget _buildButton(BuildContext context, String value, {bool isIcon = false}) {
-    // 000 is wider than single digits, but layout asks for equal spacing grid usually. 
-    // The user image shows alignment. Let's stick to Expanded or fixed width.
-    // Fixed width items with SpaceBetween looks good.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Vibranter blue for Dark Mode, Deeper blue for Light Mode
+    final keyColor = isDark ? const Color(0xFF448AFF) : const Color(0xFF0044CC);
+    
     return InkWell(
       onTap: () {
         if (isIcon) {
@@ -54,26 +55,33 @@ class NumPad extends StatelessWidget {
           onInput(value);
         }
       },
-      borderRadius: BorderRadius.circular(50),
+      borderRadius: BorderRadius.circular(25), // Adjusted for smaller height
       child: SizedBox(
         width: 80, 
-        height: 60,
+        height: 50, 
         child: Center(
           child: isIcon
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFF0044CC), width: 2), // Blue outline like image
+                    border: Border.all(color: keyColor, width: 2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.backspace_outlined, color: Color(0xFF0044CC), size: 24),
+                  child: Icon(Icons.backspace_outlined, color: keyColor, size: 24),
                 )
               : Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0044CC), // Blue digit color
+                    color: keyColor,
+                    shadows: isDark ? [
+                      Shadow(
+                        color: keyColor.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 0),
+                      )
+                    ] : null, // Add a subtle glow in Dark Mode
                   ),
                 ),
         ),

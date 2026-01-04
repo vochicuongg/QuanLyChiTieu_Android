@@ -383,7 +383,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    height: 250,
+                    height: MediaQuery.of(context).size.height < 600 ? 180 : 250,
                     child: AnimatedBuilder(
                       animation: _animation,
                       builder: (context, child) {
@@ -418,7 +418,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                 });
                               },
                             ),
-                            sectionsSpace: 1,
+                            sectionsSpace: 0,
                             centerSpaceRadius: 65,
                             // Rotate from -90 to 270 degrees (360 degree rotation)
                             startDegreeOffset: -360.0 + (360.0 * _animation.value),
@@ -452,9 +452,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                     ),
                                   ],
                                 ),
-                                borderSide: isTouched 
-                                    ? const BorderSide(color: Colors.white, width: 2)
-                                    : BorderSide.none,
+                                borderSide: BorderSide.none,
                               );
                             }).toList(),
                           ),
