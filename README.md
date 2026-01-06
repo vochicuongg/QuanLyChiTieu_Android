@@ -123,11 +123,13 @@ flutter run
 
 ## 📸 Hình Ảnh Demo
 
-| Dashboard (Dark) | Statistics (Pie) | Comparison (Bar) | Settings |
+| Login | Dashboard | History | Budget |
 | :---: | :---: | :---: | :---: |
-| <img src="assets/screenshots/dashboard.png" width="200" alt="Dashboard"> | <img src="assets/screenshots/stats.png" width="200" alt="Stats"> | <img src="assets/screenshots/comparison.png" width="200" alt="Comparison"> | <img src="assets/screenshots/settings.png" width="200" alt="Settings"> |
+| <img src="vfinance_phone/assets/screenshots/login.png" width="200" alt="Login"> | <img src="vfinance_phone/assets/screenshots/dashboard.png" width="200" alt="Dashboard"> | <img src="vfinance_phone/assets/screenshots/history.png" width="200" alt="History"> | <img src="vfinance_phone/assets/screenshots/budget.png" width="200" alt="Budget"> |
 
-*(Lưu ý: Thay thế đường dẫn ảnh bằng ảnh chụp màn hình thực tế của bạn)*
+| Statistics (Pie) | Comparison (Bar) | Settings |
+| :---: | :---: | :---: |
+| <img src="vfinance_phone/assets/screenshots/stats1.png" width="200" alt="Stats 1"> | <img src="vfinance_phone/assets/screenshots/stats2.png" width="200" alt="Stats 2"> | <img src="vfinance_phone/assets/screenshots/setting.png" width="200" alt="Settings"> |
 
 ---
 
