@@ -81,6 +81,7 @@ lib/
    ├── comparison_chart.dart       # Biểu đồ so sánh
    ├── delta_list_view.dart        # Danh sách chênh lệch chi tiêu
    └── ...
+```
 🚀 Hướng Dẫn Cài Đặt (Development)Để chạy dự án này trên máy local, bạn cần cài đặt Flutter SDK.Bước 1: Clone dự ánbashDownloadCopy codegit clone https://github.com/vochicuongg/quanlychitieu_android.git
 cd vfinance_phoneBước 2: Cài đặt dependenciesbashDownloadCopy codeflutter pub getBước 3: Cấu hình Firebase⚠️ Lưu ý: Dự án này yêu cầu file cấu hình Firebase.
 1. 
@@ -113,17 +114,5 @@ Bước 4: Chạy ứng dụngKết nối thiết bị Android hoặc bật Emul
 * Email: [Email của bạn]
 * GitHub: vochicuongg
 © 2024 VFinance. All Rights Reserved.🛠️ Việc bạn cần làm (Dành cho Developer):
-1. 
-Đảm bảo file logo của bạn có tên là logo.png (hoặc sửa lại đường dẫn trong file Markdown).
 
-2. 
-Đặt file logo đó vào thư mục assets/ trong dự án Flutter của bạn (ví dụ: vfinance_phone/assets/logo.png).
-
-3. 
-Kiểm tra file pubspec.yaml đã khai báo thư mục assets/ chưa:
-yamlDownloadCopy codeflutter:
-  assets:
-    - assets/
-
-Khi bạn đẩy code lên GitHub, logo sẽ tự động hiển thị rất đẹp!
 ```
