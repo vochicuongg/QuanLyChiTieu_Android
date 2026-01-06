@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="">
-    <img src="vfinance_phone/assets/screenshots/app_icon.png" alt="VFinance Logo" width="150" height="150">
+    <img src="vfinance_phone/assets/icon/app_icon.png" alt="VFinance Logo" width="150" height="150">
   </a>
 </p>
 
