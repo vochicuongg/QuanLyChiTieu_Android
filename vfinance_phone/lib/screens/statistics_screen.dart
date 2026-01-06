@@ -297,7 +297,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                    if (states.contains(MaterialState.selected)) {
                      return Colors.black; // Ensure text is readable on light green
                    }
-                   return Colors.white; // Or default theme color
+                   return Theme.of(context).colorScheme.onSurface; // Adapt to Light/Dark mode
                 }),
               ),
             ),
