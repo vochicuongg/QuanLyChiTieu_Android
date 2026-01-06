@@ -146,11 +146,11 @@ Mọi đóng góp đều được hoan nghênh! Nếu bạn tìm thấy lỗi ho
 ## 📞 Liên Hệ
 
 *   **Tác giả:** Võ Chí Cường
-*   **Email:** [Email của bạn]
+*   **Email:** [chicuong123m@gmail.com]
 *   **GitHub:** [vochicuongg](https://github.com/vochicuongg)
 
 ---
 
 <p align="center">
-  © 2024 VFinance. All Rights Reserved.
+  © 2025 VFinance. All Rights Reserved.
 </p>
