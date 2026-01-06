@@ -3,18 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../widgets/num_pad.dart';
+import '../widgets/animated_progress_bar.dart';
 
 /// Budget Screen - Set spending limits and track progress per category
 class BudgetScreen extends StatefulWidget {
   final Map<ChiTieuMuc, List<ChiTieuItem>> chiTheoMuc;
   final Map<String, Map<String, List<HistoryEntry>>> lichSuThang;
   final DateTime currentDay;
+  final bool isVisible;
 
   const BudgetScreen({
     super.key,
     required this.chiTheoMuc,
     required this.lichSuThang,
     required this.currentDay,
+    this.isVisible = false,
   });
 
   @override
@@ -226,6 +229,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 NumPad(
                   onInput: handleInput,
                   onDelete: handleDelete,
+                  onLongDelete: () {
+                    setSheetState(() {
+                      currentText = '';
+                    });
+                  },
                 ),
                 
                 const SizedBox(height: 20),
@@ -306,51 +314,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(appLanguage == 'vi' ? 'Ngân sách' : 'Budget', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(appLanguage == 'vi' ? 'Hạn mức' : 'Budget', style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         scrolledUnderElevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Header
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.account_balance_wallet, color: primaryColor, size: 28),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              appLanguage == 'vi' ? 'Quản lý ngân sách' : 'Budget Management',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              appLanguage == 'vi'
-                                  ? 'Đặt hạn mức chi tiêu cho từng danh mục'
-                                  : 'Set spending limits for each category',
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
           // Budget categories with set limits
           if (_budgets.isNotEmpty) ...[
             Text(
@@ -365,6 +335,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
               final isOverBudget = spent > budget;
               
               return Card(
+                color: Theme.of(context).cardColor,
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 margin: const EdgeInsets.only(bottom: 8),
                 child: InkWell(
                   onTap: () => _showBudgetDialog(muc),
@@ -400,7 +373,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                if (isOverBudget)
+                                if (isOverBudget) ...[
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
@@ -411,7 +384,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                       appLanguage == 'vi' ? 'VƯỢT MỨC!' : 'OVER!',
                                       style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
-                                  )
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${formatAmountWithCurrency(spent - budget)}',
+                                    style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ]
                                 else ...[
                                   Text(
                                     appLanguage == 'vi' ? 'Còn lại' : 'Remaining',
@@ -431,16 +410,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 8,
-                            backgroundColor: Colors.grey.withOpacity(0.2),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              isOverBudget ? Colors.red : muc.color,
-                            ),
-                          ),
+                        AnimatedBudgetProgressBar(
+                          key: ValueKey('${muc.name}_${widget.isVisible}'),
+                          progress: progress,
+                          color: muc.color,
+                          overBudgetColor: Colors.red,
+                          height: 8,
                         ),
                       ],
                     ),
@@ -460,6 +435,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ...budgetableCategories.where((m) => !_budgets.containsKey(m.name)).map((muc) {
             final spent = _getMonthlySpending(muc);
             return Card(
+              color: Theme.of(context).cardColor,
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: CircleAvatar(

@@ -99,7 +99,7 @@ final List<ExpenseCategory> expenseCategories = [
     nameVi: 'Đồ uống',
     nameEn: 'Drinks',
     icon: Icons.local_cafe_rounded,
-    color: Colors.brown,
+    color: const Color(0xFFAE7152), // Lighter brown (Brown 400)
     subCategories: [
       ExpenseSubCategory(id: 'caPhe', nameVi: 'Cà phê', nameEn: 'Coffee', icon: Icons.coffee_rounded),
       ExpenseSubCategory(id: 'tra', nameVi: 'Trà', nameEn: 'Tea', icon: Icons.emoji_food_beverage_rounded),

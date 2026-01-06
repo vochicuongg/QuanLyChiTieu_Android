@@ -356,7 +356,7 @@ extension ChiTieuMucX on ChiTieuMuc {
       case ChiTieuMuc.nhaTro: return Colors.blue;
       case ChiTieuMuc.hocPhi: return Colors.purple;
       case ChiTieuMuc.thucAn: return Colors.orange;
-      case ChiTieuMuc.doUong: return Colors.brown;
+      case ChiTieuMuc.doUong: return Color(0xFFAE7152);
       case ChiTieuMuc.xang: return Colors.red;
       case ChiTieuMuc.muaSam: return Colors.pink;
       case ChiTieuMuc.suaXe: return Colors.teal;
@@ -382,6 +382,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
   final Map<ChiTieuMuc, List<ChiTieuItem>> _chiTheoMuc = {
     for (final muc in ChiTieuMuc.values) muc: <ChiTieuItem>[],
   };
+
   final Map<String, Map<String, List<HistoryEntry>>> _lichSuThang = {};
 
   static const String _keyChiTheoMuc = 'chi_theo_muc';
@@ -963,6 +964,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
         chiTheoMuc: _chiTheoMuc,
         lichSuThang: _lichSuThang,
         currentDay: _currentDay,
+        isVisible: _selectedIndex == 1,
       ),
       // 2: Home (center)
       HomeScreen(
@@ -1011,13 +1013,13 @@ class _VFinanceAppState extends State<VFinanceApp> {
         indicatorColor: const Color(0xff4CEEC8),
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.pie_chart_outline),
-            selectedIcon: const Icon(Icons.pie_chart),
+            icon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.pie_chart_outline)),
+            selectedIcon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.pie_chart)),
             label: appLanguage == 'vi' ? 'Thống kê' : 'Stats',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: const Icon(Icons.account_balance_wallet),
+            icon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.account_balance_wallet_outlined)),
+            selectedIcon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.account_balance_wallet)),
             label: appLanguage == 'vi' ? 'Ngân sách' : 'Budget',
           ),
           NavigationDestination(
@@ -1040,13 +1042,13 @@ class _VFinanceAppState extends State<VFinanceApp> {
             label: appLanguage == 'vi' ? 'Trang chủ' : 'Home',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.history_outlined),
-            selectedIcon: const Icon(Icons.history),
+            icon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.history_outlined)),
+            selectedIcon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.history)),
             label: appLanguage == 'vi' ? 'Lịch sử' : 'History',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
+            icon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.settings_outlined)),
+            selectedIcon: Container(height: 40, alignment: Alignment.center, child: const Icon(Icons.settings)),
             label: appLanguage == 'vi' ? 'Cài đặt' : 'Settings',
           ),
         ],

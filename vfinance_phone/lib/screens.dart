@@ -432,44 +432,61 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
       soTienMoi = result;
     }
 
-    if (soTienMoi != null && soTienMoi > 0) {
-      final item = danhSachChi[index];
-      final now = DateTime.now();
-      // Keep old values if not updated (though result usually has them if picker is used)
-      // Actually if result is int, subCategory and name are null, but we should probably keep old ones?
-      // Wait, if result is int (from simple input without picker changes?), it means user didn't change category.
-      // usages of NhapSoTienScreen logic suggests if showCategoryPicker is true, it returns Map if category selected.
-      
-      // If user didn't change category (result is int), keep old subCategory/name
-      final finalSubCategory = (result is Map) ? subCategoryMoi : item.subCategory;
-      final finalTenChiTieu = (result is Map) ? tenChiTieuMoi : item.tenChiTieu;
+    if (soTienMoi != null) {
+      if (soTienMoi == 0) {
+        _deleteItem(index, danhSachChi[index]);
+      } else if (soTienMoi > 0) {
+        final item = danhSachChi[index];
+        final now = DateTime.now();
+        
+        // If user didn't change category (result is int), keep old subCategory/name
+        final finalSubCategory = (result is Map) ? subCategoryMoi : item.subCategory;
+        final finalTenChiTieu = (result is Map) ? tenChiTieuMoi : item.tenChiTieu;
 
-      final updatedItem = item.copyWith(
-        soTien: soTienMoi, 
-        thoiGian: now,
-        subCategory: finalSubCategory,
-        tenChiTieu: finalTenChiTieu,
-      );
-      
-      // Optimistic UI update for immediate feedback
-      setState(() {
-        danhSachChi[index] = updatedItem;
-      });
-      
-      // Cloud First: When logged in, update Firestore (main screen listens to stream)
-      if (transactionService.isLoggedIn) {
-        if (item.id != null) {
-          transactionService.update(
-            item.id!,
-            soTien: soTienMoi,
-            thoiGian: now,
-            subCategory: finalSubCategory,
-            ghiChu: finalTenChiTieu,
-          );
+        final updatedItem = item.copyWith(
+          soTien: soTienMoi, 
+          thoiGian: now,
+          subCategory: finalSubCategory,
+          tenChiTieu: finalTenChiTieu,
+        );
+        
+        // Optimistic UI update for immediate feedback
+        setState(() {
+          danhSachChi[index] = updatedItem;
+        });
+        
+        // Cloud First: When logged in, update Firestore (main screen listens to stream)
+        if (transactionService.isLoggedIn) {
+          if (item.id != null) {
+            transactionService.update(
+              item.id!,
+              soTien: soTienMoi,
+              thoiGian: now,
+              subCategory: finalSubCategory,
+              ghiChu: finalTenChiTieu,
+            );
+          }
+        } else {
+          widget.onDataChanged?.call(danhSachChi);
         }
-      } else {
-        widget.onDataChanged?.call(danhSachChi);
       }
+    }
+  }
+
+  void _deleteItem(int index, ChiTieuItem item) {
+    // Optimistic UI update for immediate feedback
+    setState(() {
+      danhSachChi.removeAt(index);
+    });
+    
+    // Cloud First: When logged in, delete from Firestore (main screen listens to stream)
+    // When guest mode, use local callback
+    if (transactionService.isLoggedIn) {
+      if (item.id != null) {
+        transactionService.delete(item.id!);
+      }
+    } else {
+      widget.onDataChanged?.call(danhSachChi);
     }
   }
 
@@ -496,21 +513,7 @@ class _ChiTieuTheoMucScreenState extends State<ChiTieuTheoMucScreen> {
     );
 
     if (shouldDelete != true) return;
-
-    // Optimistic UI update for immediate feedback
-    setState(() {
-      danhSachChi.removeAt(index);
-    });
-    
-    // Cloud First: When logged in, delete from Firestore (main screen listens to stream)
-    // When guest mode, use local callback
-    if (transactionService.isLoggedIn) {
-      if (item.id != null) {
-        transactionService.delete(item.id!);
-      }
-    } else {
-      widget.onDataChanged?.call(danhSachChi);
-    }
+    _deleteItem(index, item);
   }
 
   @override
@@ -982,11 +985,11 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
   void _xacNhan() {
     if (_isNavigating) return; // Prevent double tap
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    
+    // Treat empty text as 0
+    final soTien = text.isEmpty ? 0 : int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
 
-    final soTien = int.tryParse(text.replaceAll('.', '').replaceAll(',', ''));
-
-    if (soTien != null && soTien > 0 && mounted) {
+    if (soTien != null && soTien >= 0 && mounted) {
       _isNavigating = true;
       // Return both amount and category if category picker is enabled
       if (widget.showCategoryPicker && _selectedCategory != null) {
@@ -1122,6 +1125,15 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
                       decoration: InputDecoration(
                         hintText: '0',
                         suffixText: '₫',
+                        // Match design: Blue border
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFF448AFF), width: 2),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFF448AFF), width: 2),
+                        ),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                         filled: true,
                         fillColor: Theme.of(context).brightness == Brightness.dark 
@@ -1180,6 +1192,9 @@ class _NhapSoTienScreenState extends State<NhapSoTienScreen> {
                     _controller.text = formatNumberWithDots(number);
                   }
                 }
+              },
+              onLongDelete: () {
+                _controller.text = '';
               },
             ),
           // Removed the else block that contained CustomKeyboard for _nameController
@@ -1971,6 +1986,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         appLanguage == 'vi'
                             ? 'Bạn có chắc muốn đăng xuất không?'
                             : 'Are you sure you want to log out?',
+                        style: const TextStyle(fontSize: 16, color: Color(0xFF000000)),
                       ),
                       actions: [
                         TextButton(

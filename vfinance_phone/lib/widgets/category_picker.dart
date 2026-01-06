@@ -65,7 +65,7 @@ class SubCategoryPickerSheet extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: category.color.withValues(alpha: 0.2),
+                  backgroundColor: category.color.withOpacity(0.2),
                   child: Icon(category.icon, color: category.color, size: 24),
                 ),
                 const SizedBox(width: 12),
@@ -88,14 +88,14 @@ class SubCategoryPickerSheet extends StatelessWidget {
               
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: category.color.withValues(alpha: 0.1),
+                  backgroundColor: category.color.withOpacity(0.1),
                   child: Icon(sub.icon, color: category.color, size: 20),
                 ),
                 title: Text(
                   sub.getName(appLanguage),
                   style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                trailing: const Icon(Icons.add_circle_outline, color: Colors.grey),
                 onTap: () => Navigator.pop(context, sub.id),
               );
             },
@@ -171,7 +171,7 @@ class _FullCategoryPickerSheetState extends State<FullCategoryPickerSheet> {
                       // Main category
                       ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: category.color.withValues(alpha: 0.2),
+                          backgroundColor: category.color.withOpacity(0.2),
                           child: Icon(category.icon, color: category.color, size: 22),
                         ),
                         title: Text(

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../main.dart';
 import '../screens.dart' hide SettingsScreen, LichSuScreen;
+import '../widgets/animated_gradient_card.dart';
 
 /// Home Screen - Dashboard with balance card and category grid
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final Map<ChiTieuMuc, List<ChiTieuItem>> chiTheoMuc;
   final Map<String, Map<String, List<HistoryEntry>>> lichSuThang;
   final DateTime currentDay;
@@ -28,33 +29,43 @@ class HomeScreen extends StatelessWidget {
     required this.onCategoryTap,
   });
 
-  String _getGreeting() {
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+
+
+  String _getGreeting({String? name}) {
     final hour = DateTime.now().hour;
+    final displayName = name ?? '';
+    final hasName = displayName.isNotEmpty;
+    
     if (appLanguage == 'vi') {
-      if (hour >= 5 && hour < 11) return '🌞 Buổi sáng vui vẻ nho';
-      if (hour >= 11 && hour < 13) return '☀️ Nghỉ trưa thư giãn nhen';
-      if (hour >= 13 && hour < 18) return '⛅ Buổi chiều mát mẻ nha';
-      if (hour >= 18 && hour < 22) return '🌙 Buổi tối ấm áp nhé';
-      return '🌠 Nghỉ ngơi sớm đi nè';
+      if (hour >= 5 && hour < 11) return hasName ? '🌞 Chào buổi sáng $displayName! Chi tiêu thật "chill" nha.' : '🌞 Chào buổi sáng! Chi tiêu thật "chill" nha.';
+      if (hour >= 11 && hour < 13) return hasName ? '☀️ $displayName ơi, trưa ngon miệng và nhớ ghi "bill" nè.' : '☀️ Trưa ngon miệng và nhớ ghi "bill" nhé!';
+      if (hour >= 13 && hour < 18) return hasName ? '⛅ Chiều vui vẻ nha $displayName, đừng để tiền rơi nhé.' : '⛅ Chiều mát mẻ nhé! Giữ ví thật chặt nha.';
+      if (hour >= 18 && hour < 22) return hasName ? '🌙 Tối thư giãn và tổng kết ví chút nha $displayName ơi.' : '🌙 Tối thư giãn! Tổng kết ví chút nào';
+      return hasName ? '🌠 Ngủ sớm thôi $displayName ơi!\nSức khỏe là lãi quan trọng nhất.' : '🌠 Ngủ sớm thôi nào!\nSức khỏe là lãi nhất.';
     } else {
-      if (hour >= 5 && hour < 11) return '🌞 Have a great morning';
-      if (hour >= 11 && hour < 13) return '☀️ Have a relaxing lunch break';
-      if (hour >= 13 && hour < 18) return '⛅ Have a lovely afternoon';
-      if (hour >= 18 && hour < 22) return '🌙 Have a cozy evening';
-      return '🌠 Have an early night';
+      if (hour >= 5 && hour < 11) return hasName ? '🌞 Good morning, $displayName! Keep your spending chill today.' : '🌞 Good morning! Keep your spending chill today.';
+      if (hour >= 11 && hour < 13) return hasName ? '☀️ Bon appétit, $displayName! Don\'t forget to log the bill.' : '☀️ Bon appétit! Don\'t forget to log the bill.';
+      if (hour >= 13 && hour < 18) return hasName ? '⛅ Good afternoon, $displayName! Keep a close watch on your wallet.' : '⛅ Good afternoon! Keep a close watch on your wallet.';
+      if (hour >= 18 && hour < 22) return hasName ? '🌙 Good evening, $displayName! Time for a quick daily recap.' : '🌙 Good evening! Time for a quick daily recap.';
+      return hasName ? '🌠 Time for bed, $displayName!\nHealth is the best investment.' : '🌠 Time for bed!\nHealth is the best investment.';
     }
   }
 
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
   int _tongMuc(ChiTieuMuc muc) {
-    final list = chiTheoMuc[muc] ?? <ChiTieuItem>[];
-    return list.fold(0, (a, b) => _sameDay(b.thoiGian, currentDay) ? a + b.soTien : a);
+    final list = widget.chiTheoMuc[muc] ?? <ChiTieuItem>[];
+    return list.fold(0, (a, b) => _sameDay(b.thoiGian, widget.currentDay) ? a + b.soTien : a);
   }
 
   @override
   Widget build(BuildContext context) {
-    final remaining = allTimeIncome - allTimeExpenses;
+    final remaining = widget.allTimeIncome - widget.allTimeExpenses;
     final categories = ChiTieuMuc.values.where((m) =>
       m != ChiTieuMuc.lichSu && m != ChiTieuMuc.caiDat
     ).toList();
@@ -64,39 +75,27 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Balance Card with Gradient
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4355F0), Color(0xFF2BC0E4), Color(0xFF4FF2C6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
+          // Balance Card with Premium Animated Gradient
+          AnimatedGradientCard(
+            colors: const [
+              Color(0xFF2010A1), // Deep Blue
+              Color(0xDF42CFC4), // Teal
+              Color(0xFF42CFC4), // Teal
+            ],
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_getGreeting()}, ${FirebaseAuth.instance.currentUser?.displayName ?? (appLanguage == 'vi' ? 'Khách' : 'User')}.',
+                  _getGreeting(name: FirebaseAuth.instance.currentUser?.displayName),
                   style: TextStyle(
                     color: Colors.white, 
                     fontSize: 18, 
                     fontWeight: FontWeight.bold,
                     shadows: [
                       Shadow(
-                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
-                        offset: const Offset(0, 1),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
-                        blurRadius: 1,                        // Độ nhòe của bóng
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(0, 1),
+                        blurRadius: 1,
                       ),
                     ],
                   ),
@@ -112,14 +111,14 @@ class HomeScreen extends StatelessWidget {
                       ? formatAmountWithCurrency(remaining)
                       : '-${formatAmountWithCurrency(remaining.abs())}',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: remaining >= 0 ? Colors.white : Colors.red,
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     shadows: [
                       Shadow(
-                        color: Colors.black.withOpacity(0.5), // Màu bóng (đen mờ 50%)
-                        offset: const Offset(0, 1),           // Độ lệch (x: 2, y: 2) -> Bóng đổ xuống góc phải
-                        blurRadius: 1,                        // Độ nhòe của bóng
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(0, 1),
+                        blurRadius: 1,
                       ),
                     ],
                   ),
@@ -130,13 +129,13 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     _BalanceInfo(
                       label: appLanguage == 'vi' ? 'Thu nhập' : 'Income',
-                      amount: formatAmountWithCurrency(monthlyIncome),
+                      amount: formatAmountWithCurrency(widget.monthlyIncome),
                       icon: Icons.add_circle_outline,
-                      color: Colors.greenAccent,
+                      color: const Color(0xFF00D366),
                     ),
                     _BalanceInfo(
                       label: appLanguage == 'vi' ? 'Chi tiêu' : 'Expenses',
-                      amount: formatAmountWithCurrency(monthlyExpenses),
+                      amount: formatAmountWithCurrency(widget.monthlyExpenses),
                       icon: Icons.remove_circle_outline,
                       color: Colors.redAccent,
                     ),
@@ -151,13 +150,13 @@ class HomeScreen extends StatelessWidget {
           // Today's spending
           Text(
             appLanguage == 'vi'
-                ? 'Tổng chi tiêu ${currentDay.day}/${currentDay.month}:'
-                : 'Spending ${getMonthName(currentDay.month)} ${getOrdinalSuffix(currentDay.day)}:',
+                ? 'Tổng chi tiêu ${widget.currentDay.day}/${widget.currentDay.month}:'
+                : 'Spending ${getMonthName(widget.currentDay.month)} ${getOrdinalSuffix(widget.currentDay.day)}:',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            formatAmountWithCurrency(tongHomNay),
+            formatAmountWithCurrency(widget.tongHomNay),
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w600,
@@ -194,8 +193,8 @@ class HomeScreen extends StatelessWidget {
               final muc = categories[index];
               int displayAmount;
               if (muc == ChiTieuMuc.soDu) {
-                displayAmount = (chiTheoMuc[ChiTieuMuc.soDu] ?? <ChiTieuItem>[])
-                    .where((item) => _sameDay(item.thoiGian, currentDay))
+                displayAmount = (widget.chiTheoMuc[ChiTieuMuc.soDu] ?? <ChiTieuItem>[])
+                    .where((item) => _sameDay(item.thoiGian, widget.currentDay))
                     .fold(0, (sum, item) => sum + item.soTien);
               } else {
                 displayAmount = _tongMuc(muc);
@@ -207,7 +206,7 @@ class HomeScreen extends StatelessWidget {
                 amount: displayAmount,
                 color: muc.color,
                 isBalance: muc == ChiTieuMuc.soDu,
-                onTap: () => onCategoryTap(muc),
+                onTap: () => widget.onCategoryTap(muc),
               );
             },
           ),

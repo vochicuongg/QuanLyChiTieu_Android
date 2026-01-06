@@ -2,7 +2,7 @@ name: vfinance_phone
 description: "VFinance - Expense Management for Android Phone"
 publish_to: 'none'
 
-version: 1.0.4+1 # Cập nhật version khi build apk
+version: 1.0.5+2 # Cập nhật version khi build apk
 
 environment:
   sdk: ^3.10.4

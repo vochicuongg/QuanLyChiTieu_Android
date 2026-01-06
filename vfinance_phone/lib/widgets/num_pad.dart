@@ -4,11 +4,13 @@ import '../main.dart'; // For expenseColor access if needed, though we generally
 class NumPad extends StatelessWidget {
   final Function(String) onInput;
   final VoidCallback onDelete;
+  final VoidCallback? onLongDelete;
 
   const NumPad({
     super.key,
     required this.onInput,
     required this.onDelete,
+    this.onLongDelete,
   });
 
   @override
@@ -55,6 +57,7 @@ class NumPad extends StatelessWidget {
           onInput(value);
         }
       },
+      onLongPress: isIcon ? onLongDelete : null,
       borderRadius: BorderRadius.circular(25), // Adjusted for smaller height
       child: SizedBox(
         width: 80, 
@@ -64,10 +67,10 @@ class NumPad extends StatelessWidget {
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    border: Border.all(color: keyColor, width: 2),
+                    color: keyColor, // Filled blue background
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.backspace_outlined, color: keyColor, size: 24),
+                  child: Icon(Icons.backspace_outlined, color: Theme.of(context).scaffoldBackgroundColor, size: 24),
                 )
               : Text(
                   value,

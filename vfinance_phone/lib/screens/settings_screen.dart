@@ -200,7 +200,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: Text(appLanguage == 'vi' ? 'Đăng xuất' : 'Log Out', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
       onTap: () async {
         final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-          title: Text(appLanguage == 'vi' ? 'Đăng xuất?' : 'Log Out?'),
+          title: Text(appLanguage == 'vi' ? 'Đăng xuất?' : 'Log Out?', style: const TextStyle(fontWeight: FontWeight.bold)),
+          content: Text(
+            appLanguage == 'vi'
+                ? 'Bạn có chắc muốn đăng xuất không?'
+                : 'Are you sure you want to log out?',
+            style: const TextStyle(fontSize: 16),
+          ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(c, false), child: Text(appLanguage == 'vi' ? 'Hủy' : 'Cancel')),
             TextButton(onPressed: () => Navigator.pop(c, true), child: Text(appLanguage == 'vi' ? 'Đăng xuất' : 'Log Out', style: const TextStyle(color: Colors.red))),
