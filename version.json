@@ -1,5 +1,5 @@
 {
-    "version": "1.0.4",
-    "downloadUrl": "https://github.com/vochicuongg/QuanLyChiTieu_Android/releases/download/v1.0.4.adr-vochicuongg/VFinance-v1.0.4.adr-vochicuongg.apk",
-    "releaseNotes": "Cập nhật bàn phím số thông minh cho phần nhập hạn mức.\nHiển thị số tiền còn lại của hạn mức.\nTối ưu hiển thị văn bản (đổ bóng) cho dễ nhìn hơn."
+    "version": "1.0.5",
+    "downloadUrl": "https://github.com/vochicuongg/QuanLyChiTieu_Android/releases/download/v1.0.5.adr-vochicuongg/VFinance-v1.0.5.adr-vochicuongg.apk",
+    "releaseNotes": "Cập nhật hiệu ứng biểu đồ so sánh mượt mà hơn.\nĐồng bộ giao diện phần thống kê và hạn mức.\nSửa các lỗi nhỏ và tối ưu hóa trải nghiệm."
 }
