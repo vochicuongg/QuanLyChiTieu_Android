@@ -1,5 +1,15 @@
 # 💰 VFinance - Quản Lý Chi Tiêu Cá Nhân (Android)
 
+<p align="center">
+  <a href="">
+    <img src="assets/logo.png" alt="VFinance Logo" width="150" height="150">
+  </a>
+</p>
+<p align="center">
+  <i>Quản lý tài chính thông minh, nắm bắt tương lai vững vàng.</i>
+</p>
+---
+
 **VFinance** là ứng dụng quản lý tài chính cá nhân thông minh được xây dựng bằng **Flutter**, giúp người dùng theo dõi thu nhập, chi tiêu, quản lý ngân sách và phân tích thói quen tài chính trực quan. Ứng dụng hỗ trợ đồng bộ hóa dữ liệu thời gian thực qua **Firebase Cloud Firestore**.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.10.4-blue.svg)
@@ -68,3 +78,19 @@ lib/
     ├── comparison_chart.dart       # Biểu đồ so sánh
     ├── delta_list_view.dart        # Danh sách chênh lệch chi tiêu
     └── ...
+🚀 Hướng Dẫn Cài Đặt (Development)Để chạy dự án này trên máy local, bạn cần cài đặt Flutter SDK.Bước 1: Clone dự ánBashgit clone [https://github.com/vochicuongg/quanlychitieu_android.git](https://github.com/vochicuongg/quanlychitieu_android.git)
+cd vfinance_phone
+Bước 2: Cài đặt dependenciesBashflutter pub get
+Bước 3: Cấu hình Firebase⚠️ Lưu ý: Dự án này yêu cầu file cấu hình Firebase.Truy cập Firebase Console.Tạo project mới hoặc sử dụng project có sẵn.Thêm ứng dụng Android với package name: com.chiscung.vfinance_phone.Tải file google-services.json và đặt vào thư mục:android/app/google-services.jsonBước 4: Chạy ứng dụngKết nối thiết bị Android hoặc bật Emulator và chạy lệnh:Bashflutter run
+📸 Hình Ảnh DemoDashboard (Dark)Statistics (Pie)Comparison (Bar)Settings<img src="assets/screenshots/dashboard.png" width="200" alt="Dashboard"><img src="assets/screenshots/stats.png" width="200" alt="Stats"><img src="assets/screenshots/comparison.png" width="200" alt="Comparison"><img src="assets/screenshots/settings.png" width="200" alt="Settings">(Lưu ý: Thay thế đường dẫn ảnh bằng ảnh chụp màn hình thực tế của bạn)🤝 Đóng GópMọi đóng góp đều được hoan nghênh! Nếu bạn tìm thấy lỗi hoặc muốn đề xuất tính năng mới:Fork dự án.Tạo branch mới (git checkout -b feature/AmazingFeature).Commit thay đổi (git commit -m 'Add some AmazingFeature').Push lên branch (git push origin feature/AmazingFeature).Tạo Pull Request.📞 Liên HệTác giả: Võ Chí CườngEmail: [Email của bạn]GitHub: vochicuongg© 2024 VFinance. All Rights Reserved.
+### 🛠️ Việc bạn cần làm:
+
+1.  Đảm bảo file logo của bạn có tên là `logo.png` (hoặc sửa lại đường dẫn trong file Markdown).
+2.  Đặt file logo đó vào thư mục `assets/` trong dự án Flutter của bạn (ví dụ: `vfinance_phone/assets/logo.png`).
+3.  Kiểm tra file `pubspec.yaml` đã khai báo thư mục `assets/` chưa:
+    ```yaml
+    flutter:
+      assets:
+        - assets/
+    ```
+Khi bạn đẩy code lên GitHub, logo sẽ tự động hiển thị rất đẹp!
