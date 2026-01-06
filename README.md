@@ -5,37 +5,44 @@
     <img src="assets/logo.png" alt="VFinance Logo" width="150" height="150">
   </a>
 </p>
+
 <p align="center">
   <i>Quản lý tài chính thông minh, nắm bắt tương lai vững vàng.</i>
 </p>
+
 ---
 
 **VFinance** là ứng dụng quản lý tài chính cá nhân thông minh được xây dựng bằng **Flutter**, giúp người dùng theo dõi thu nhập, chi tiêu, quản lý ngân sách và phân tích thói quen tài chính trực quan. Ứng dụng hỗ trợ đồng bộ hóa dữ liệu thời gian thực qua **Firebase Cloud Firestore**.
 
-![Flutter](https://img.shields.io/badge/Flutter-3.10.4-blue.svg)
-![Firebase](https://img.shields.io/badge/Firebase-Core-orange.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+<div align="center">
+
+![Flutter](https://img.shields.io/badge/Flutter-3.10.4-blue.svg?style=flat-square&logo=flutter)
+![Firebase](https://img.shields.io/badge/Firebase-Core-orange.svg?style=flat-square&logo=firebase)
+![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Android-green.svg?style=flat-square&logo=android)
+
+</div>
 
 ## ✨ Tính Năng Nổi Bật
 
 ### 📊 1. Quản Lý & Thống Kê
-* **Dashboard trực quan:** Hiển thị số dư hiện tại, tổng thu/chi trong tháng với giao diện thẻ Gradient động (Animated Gradient).
-* **Ghi chép nhanh:** Thêm giao dịch chi tiêu/thu nhập theo danh mục (Ăn uống, Di chuyển, Mua sắm, v.v.).
-* **Biểu đồ phân tích (Statistics):**
-    * **Pie Chart:** Xem tỷ lệ phần trăm chi tiêu theo danh mục.
-    * **Comparison Mode (Mới):** So sánh chi tiêu giữa tháng hiện tại và tháng trước (hoặc kỳ bất kỳ) bằng biểu đồ cột đôi và danh sách chênh lệch (Delta View).
-* **Lịch sử chi tiết:** Xem lại lịch sử giao dịch theo ngày/tháng.
+*   **Dashboard trực quan:** Hiển thị số dư hiện tại, tổng thu/chi trong tháng với giao diện thẻ Gradient động (Animated Gradient).
+*   **Ghi chép nhanh:** Thêm giao dịch chi tiêu/thu nhập theo danh mục (Ăn uống, Di chuyển, Mua sắm, v.v.).
+*   **Biểu đồ phân tích (Statistics):**
+    *   **Pie Chart:** Xem tỷ lệ phần trăm chi tiêu theo danh mục.
+    *   **Comparison Mode (Mới):** So sánh chi tiêu giữa tháng hiện tại và tháng trước (hoặc kỳ bất kỳ) bằng biểu đồ cột đôi và danh sách chênh lệch (Delta View).
+*   **Lịch sử chi tiết:** Xem lại lịch sử giao dịch theo ngày/tháng.
 
 ### ☁️ 2. Công Nghệ & Đồng Bộ
-* **Cloud First:** Dữ liệu được lưu trữ và đồng bộ thời gian thực trên Firebase Firestore. Đăng nhập trên nhiều thiết bị vẫn giữ nguyên dữ liệu.
-* **Guest Mode:** Hỗ trợ dùng thử không cần đăng nhập. Tự động di chuyển dữ liệu (Migration) khi người dùng quyết định tạo tài khoản.
-* **Bảo mật:** Xác thực người dùng qua Firebase Authentication.
+*   **Cloud First:** Dữ liệu được lưu trữ và đồng bộ thời gian thực trên Firebase Firestore. Đăng nhập trên nhiều thiết bị vẫn giữ nguyên dữ liệu.
+*   **Guest Mode:** Hỗ trợ dùng thử không cần đăng nhập. Tự động di chuyển dữ liệu (Migration) khi người dùng quyết định tạo tài khoản.
+*   **Bảo mật:** Xác thực người dùng qua Firebase Authentication.
 
 ### 🎨 3. Trải Nghiệm Người Dùng (UX/UI)
-* **Dark/Light Mode:** Hỗ trợ giao diện Sáng/Tối tuỳ chỉnh hoặc theo hệ thống.
-* **Đa ngôn ngữ:** Hỗ trợ Tiếng Việt (Vi) và Tiếng Anh (En).
-* **Thông báo thông minh:** Nhắc nhở ghi chép chi tiêu vào các khung giờ vàng (Sáng, Trưa, Chiều, Tối) với lời chào thân thiện.
-* **In-App Update:** Tự động kiểm tra và cập nhật phiên bản mới nhất từ server.
+*   **Dark/Light Mode:** Hỗ trợ giao diện Sáng/Tối tuỳ chỉnh hoặc theo hệ thống.
+*   **Đa ngôn ngữ:** Hỗ trợ Tiếng Việt (Vi) và Tiếng Anh (En).
+*   **Thông báo thông minh:** Nhắc nhở ghi chép chi tiêu vào các khung giờ vàng (Sáng, Trưa, Chiều, Tối) với lời chào thân thiện.
+*   **In-App Update:** Tự động kiểm tra và cập nhật phiên bản mới nhất từ server.
 
 ---
 
@@ -78,19 +85,72 @@ lib/
     ├── comparison_chart.dart       # Biểu đồ so sánh
     ├── delta_list_view.dart        # Danh sách chênh lệch chi tiêu
     └── ...
-🚀 Hướng Dẫn Cài Đặt (Development)Để chạy dự án này trên máy local, bạn cần cài đặt Flutter SDK.Bước 1: Clone dự ánBashgit clone [https://github.com/vochicuongg/quanlychitieu_android.git](https://github.com/vochicuongg/quanlychitieu_android.git)
-cd vfinance_phone
-Bước 2: Cài đặt dependenciesBashflutter pub get
-Bước 3: Cấu hình Firebase⚠️ Lưu ý: Dự án này yêu cầu file cấu hình Firebase.Truy cập Firebase Console.Tạo project mới hoặc sử dụng project có sẵn.Thêm ứng dụng Android với package name: com.chiscung.vfinance_phone.Tải file google-services.json và đặt vào thư mục:android/app/google-services.jsonBước 4: Chạy ứng dụngKết nối thiết bị Android hoặc bật Emulator và chạy lệnh:Bashflutter run
-📸 Hình Ảnh DemoDashboard (Dark)Statistics (Pie)Comparison (Bar)Settings<img src="assets/screenshots/dashboard.png" width="200" alt="Dashboard"><img src="assets/screenshots/stats.png" width="200" alt="Stats"><img src="assets/screenshots/comparison.png" width="200" alt="Comparison"><img src="assets/screenshots/settings.png" width="200" alt="Settings">(Lưu ý: Thay thế đường dẫn ảnh bằng ảnh chụp màn hình thực tế của bạn)🤝 Đóng GópMọi đóng góp đều được hoan nghênh! Nếu bạn tìm thấy lỗi hoặc muốn đề xuất tính năng mới:Fork dự án.Tạo branch mới (git checkout -b feature/AmazingFeature).Commit thay đổi (git commit -m 'Add some AmazingFeature').Push lên branch (git push origin feature/AmazingFeature).Tạo Pull Request.📞 Liên HệTác giả: Võ Chí CườngEmail: [Email của bạn]GitHub: vochicuongg© 2024 VFinance. All Rights Reserved.
-### 🛠️ Việc bạn cần làm:
+```
 
-1.  Đảm bảo file logo của bạn có tên là `logo.png` (hoặc sửa lại đường dẫn trong file Markdown).
-2.  Đặt file logo đó vào thư mục `assets/` trong dự án Flutter của bạn (ví dụ: `vfinance_phone/assets/logo.png`).
-3.  Kiểm tra file `pubspec.yaml` đã khai báo thư mục `assets/` chưa:
-    ```yaml
-    flutter:
-      assets:
-        - assets/
-    ```
-Khi bạn đẩy code lên GitHub, logo sẽ tự động hiển thị rất đẹp!
+---
+
+## 🚀 Hướng Dẫn Cài Đặt (Development)
+
+Để chạy dự án này trên máy local, bạn cần cài đặt Flutter SDK.
+
+### Bước 1: Clone dự án
+```bash
+git clone https://github.com/vochicuongg/quanlychitieu_android.git
+cd vfinance_phone
+```
+
+### Bước 2: Cài đặt dependencies
+```bash
+flutter pub get
+```
+
+### Bước 3: Cấu hình Firebase
+> ⚠️ **Lưu ý:** Dự án này yêu cầu file cấu hình `google-services.json` từ Firebase.
+
+1. Truy cập [Firebase Console](https://console.firebase.google.com/).
+2. Tạo project mới hoặc sử dụng project có sẵn.
+3. Thêm ứng dụng Android với package name: `com.chiscung.vfinance_phone`.
+4. Tải file `google-services.json` và đặt vào thư mục:
+   `android/app/google-services.json`
+
+### Bước 4: Chạy ứng dụng
+Kết nối thiết bị Android hoặc bật Emulator và chạy lệnh:
+```bash
+flutter run
+```
+
+---
+
+## 📸 Hình Ảnh Demo
+
+| Dashboard (Dark) | Statistics (Pie) | Comparison (Bar) | Settings |
+| :---: | :---: | :---: | :---: |
+| <img src="assets/screenshots/dashboard.png" width="200" alt="Dashboard"> | <img src="assets/screenshots/stats.png" width="200" alt="Stats"> | <img src="assets/screenshots/comparison.png" width="200" alt="Comparison"> | <img src="assets/screenshots/settings.png" width="200" alt="Settings"> |
+
+*(Lưu ý: Thay thế đường dẫn ảnh bằng ảnh chụp màn hình thực tế của bạn)*
+
+---
+
+## 🤝 Đóng Góp
+
+Mọi đóng góp đều được hoan nghênh! Nếu bạn tìm thấy lỗi hoặc muốn đề xuất tính năng mới:
+
+1. **Fork** dự án.
+2. Tạo **branch** mới (`git checkout -b feature/AmazingFeature`).
+3. **Commit** thay đổi (`git commit -m 'Add some AmazingFeature'`).
+4. **Push** lên branch (`git push origin feature/AmazingFeature`).
+5. Tạo **Pull Request**.
+
+---
+
+## 📞 Liên Hệ
+
+*   **Tác giả:** Võ Chí Cường
+*   **Email:** [Email của bạn]
+*   **GitHub:** [vochicuongg](https://github.com/vochicuongg)
+
+---
+
+<p align="center">
+  © 2024 VFinance. All Rights Reserved.
+</p>
