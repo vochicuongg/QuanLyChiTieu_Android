@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vibration/vibration.dart';
+import 'package:vibration/vibration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 import '../main.dart';
 
 /// ============================================================================
@@ -53,8 +55,29 @@ class NotificationService {
     // Create notification channels for Android
     await _createNotificationChannels();
 
+    // Redundant create of banking channel just in case
+    final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'banking_prompt', 
+          'Banking Prompts',
+          description: 'Prompts to add expense when bank notification detected',
+          importance: Importance.high,
+          playSound: true,
+        ),
+      );
+    }
+
     _isInitialized = true;
     debugPrint('[NotificationService] Initialized successfully');
+
+    // Auto-start listener if enabled
+    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+    if (prefs.getBool('banking_listener_enabled') == true) {
+      await startListening(forcePermissionRequest: false);
+    }
   }
 
   /// Create Android notification channels
@@ -299,7 +322,137 @@ class NotificationService {
       ),
     );
   }
+
+  // ===========================================================================
+  // BANKING NOTIFICATION LISTENER
+  // ===========================================================================
+
+  /// Start listening for banking notifications
+  Future<void> startListening({bool forcePermissionRequest = false}) async {
+    debugPrint('[NotificationService] Requesting listener permission...');
+    final bool? isPermissionGranted = await NotificationsListener.hasPermission;
+    
+    // Check for POST_NOTIFICATIONS permission (Android 13+)
+    final status = await Permission.notification.status;
+    if (status.isDenied) {
+       debugPrint('[NotificationService] Requesting POST_NOTIFICATIONS permission');
+       await Permission.notification.request();
+    }
+
+    if (isPermissionGranted != true) {
+      debugPrint('[NotificationService] Listener permission not granted');
+      if (forcePermissionRequest) {
+         debugPrint('[NotificationService] Opening settings...');
+         await NotificationsListener.openPermissionSettings();
+      }
+      return;
+    }
+
+    try {
+      await NotificationsListener.initialize(callbackHandle: onNotificationReceivedCallback);
+      debugPrint('[NotificationService] Listener initialized');
+    } catch (e) {
+      debugPrint('[NotificationService] Error initializing listener: $e');
+    }
+  }
+
+  /// Stop listening
+  Future<void> stopListening() async {
+    try {
+      await NotificationsListener.stopService();
+      debugPrint('[NotificationService] Listener stopped');
+    } catch (e) {
+      debugPrint('[NotificationService] Error stopping listener: $e');
+    }
+  }
 }
 
 /// Global instance for easy access
 final notificationService = NotificationService();
+
+// ===========================================================================
+// TOP-LEVEL CALLBACK FOR BACKGROUND ISOLATE
+// Must be top-level for release builds to work correctly.
+// ===========================================================================
+
+/// Callback for received notifications (Background Isolate)
+@pragma('vm:entry-point')
+void onNotificationReceivedCallback(NotificationEvent evt) async {
+  // Note: debugPrint might not work in background isolate on release
+  // Filter keywords
+  final String content = '${evt.title} ${evt.text}'.toLowerCase();
+  final List<String> keywords = [
+    'số dư', 'biến động', 'chuyển khoản', 'thanh toán', 
+    'giao dịch', 'success', 'paid', 'received', 'sent',
+    'banking', 'bank', 'vietcombank', 'techcombank', 'mbbank', 'vps',
+    'zalopay', 'acb', 'bidv', 'agribank', 'vpbank', 'tpb', 'vib',
+    'nhận tiền', 'tiền về', 'cộng', 'credit', 'deposit'
+  ];
+  
+  // Ignore VFinance itself to avoid loops
+  if (evt.packageName?.contains('vfinance') == true) return;
+
+  final bool hasKeyword = keywords.any((k) => content.contains(k));
+  
+  // Also check for explicit +/- amount patterns (e.g. +50.000, + VND 50.000)
+  // Allow up to 10 non-digit chars between sign and number (for currency symbols)
+  final bool hasMoneyPattern = RegExp(r'[+-]\s*(\D{0,10})\s*\d+([.,]\d+)*').hasMatch(content);
+  
+  if (hasKeyword || hasMoneyPattern) {
+    try {
+      // Trigger local notification to prompt user
+      await _showPromptNotificationTopLevel(evt.title ?? 'Giao dịch mới', evt.text ?? 'Chạm để ghi lại');
+    } catch (e) {
+      debugPrint('Error showing notification in background: $e');
+    }
+  }
+}
+
+Future<void> _showPromptNotificationTopLevel(String originalTitle, String originalText) async {
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  
+  // Initialize for background isolate is crucial
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings =
+      InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // CRITICAL: Create the channel if it doesn't exist
+  final androidPlugin = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>();
+      
+  if (androidPlugin != null) {
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'banking_prompt', 
+        'Banking Prompts',
+        description: 'Prompts to add expense when bank notification detected',
+        importance: Importance.high,
+        playSound: true,
+      ),
+    );
+  }
+
+  const AndroidNotificationDetails androidPlatformChannelSpecifics =
+      AndroidNotificationDetails(
+          'banking_prompt', 
+          'Banking Prompts',
+          channelDescription: 'Prompts to add expense when bank notification detected',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: Color(0xFF4CAF50), // Green
+      );
+      
+  const NotificationDetails platformChannelSpecifics =
+      NotificationDetails(android: androidPlatformChannelSpecifics);
+
+  await flutterLocalNotificationsPlugin.show(
+      999, // ID
+      '💰 Phát hiện giao dịch mới',
+      'Vừa có giao dịch: "$originalText". Chạm để ghi lại ngay!',
+      platformChannelSpecifics,
+      payload: 'add_transaction_prompt',
+  );
+}

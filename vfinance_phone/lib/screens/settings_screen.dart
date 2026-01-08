@@ -5,6 +5,7 @@ import '../main.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/update_service.dart';
+import '../services/notification_service.dart';
 
 /// Settings Screen - App settings with account, language, currency, theme
 class SettingsScreen extends StatefulWidget {
@@ -25,11 +26,13 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
+  bool _isBankingListenerEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+    _loadListenerState();
   }
 
   Future<void> _loadVersion() async {
@@ -42,6 +45,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() => _appVersion = version);
     }
+  }
+
+  Future<void> _loadListenerState() async {
+    final prefs = appPrefs ?? await SharedPreferences.getInstance();
+    setState(() {
+      _isBankingListenerEnabled = prefs.getBool('banking_listener_enabled') ?? false;
+    });
   }
 
   @override
@@ -63,6 +73,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           // Theme
           _buildThemeCard(),
+          const SizedBox(height: 8),
+          // Banking Listener
+          _buildNotificationListenCard(),
           const SizedBox(height: 8),
           // Check for Updates
           _buildUpdateCard(),
@@ -130,11 +143,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   );
 
+  Widget _buildNotificationListenCard() => Card(
+    child: SwitchListTile(
+      secondary: const Icon(Icons.notifications_active),
+      title: Text(
+        appLanguage == 'vi' ? 'Thông báo giao dịch' : 'Banking Notification',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        appLanguage == 'vi' 
+            ? 'Nhắc nhở ghi chú khi có giao dịch' 
+            : 'Remind me of a transaction when it occurs.',
+        style: const TextStyle(fontSize: 12),
+      ),
+      value: _isBankingListenerEnabled,
+      activeColor: const Color(0xff4CEEC8),
+      onChanged: (val) async {
+        setState(() => _isBankingListenerEnabled = val);
+        final prefs = appPrefs ?? await SharedPreferences.getInstance();
+        await prefs.setBool('banking_listener_enabled', val);
+        
+        if (val) {
+          // Request permission and start
+          await notificationService.startListening(forcePermissionRequest: true);
+        } else {
+          // Stop service
+          await notificationService.stopListening();
+        }
+      },
+    ),
+  );
+
   Widget _buildVersionCard() => Card(
     child: ListTile(
       leading: const Icon(Icons.info_outline),
       title: Text(appLanguage == 'vi' ? 'Phiên bản' : 'Version', style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(_appVersion.isEmpty ? '...' : _appVersion),
+      trailing: const Icon(Icons.chevron_right),
       onTap: () => _showVersionDialog(),
     ),
   );
@@ -144,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       leading: const Icon(Icons.system_update),
       title: Text(appLanguage == 'vi' ? 'Kiểm tra cập nhật' : 'Check for Updates', style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(appLanguage == 'vi' ? 'Tải phiên bản mới nhất' : 'Download the latest version'),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: const Icon(Icons.downloading_outlined),
       onTap: () => UpdateService().checkForUpdate(context, isManual: true),
     ),
   );
@@ -153,6 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     child: ListTile(
       leading: const Icon(Icons.qr_code),
       title: Text(appLanguage == 'vi' ? 'Mã QR liên hệ' : 'Contact QR Code', style: const TextStyle(fontWeight: FontWeight.bold)),
+      trailing: const Icon(Icons.chevron_right),
       onTap: () => _showQRCodeDialog(),
     ),
   );

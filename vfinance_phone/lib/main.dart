@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/widget_service.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -374,7 +376,8 @@ class VFinanceApp extends StatefulWidget {
   State<VFinanceApp> createState() => _VFinanceAppState();
 }
 
-class _VFinanceAppState extends State<VFinanceApp> {
+class _VFinanceAppState extends State<VFinanceApp> with WidgetsBindingObserver {
+  final _widgetService = WidgetService();
   DateTime _currentDay = DateTime.now();
   bool _isLoading = true;
   int _selectedIndex = 2; // Default to Home (center)
@@ -424,6 +427,7 @@ class _VFinanceAppState extends State<VFinanceApp> {
     _currentDay = _asDate(DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
+      _checkPendingNavigation();
       // Silent update check on startup (after a delay to not block UI)
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -431,13 +435,17 @@ class _VFinanceAppState extends State<VFinanceApp> {
         }
       });
     });
+    WidgetsBinding.instance.addObserver(this);
     _dayCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkNewDay());
     
     // Cloud First: Subscribe to Firestore when user logs in
     _setupFirestoreSubscription();
     
     // Listen to auth state changes to re-subscribe when user logs in/out
-    _authStateSub = authService.authStateChanges.listen((_) {
+    _authStateSub = authService.authStateChanges.listen((user) {
+      if (user != null) {
+         appPrefs?.setString('user_display_name', user.displayName ?? 'bạn');
+      }
       _setupFirestoreSubscription();
     });
   }
@@ -580,16 +588,82 @@ class _VFinanceAppState extends State<VFinanceApp> {
       } catch (_) {}
     }
     
+    
     _invalidateCache();
     if (mounted) setState(() {});
+    
+    // Update Home Widget
+    _updateWidget();
   }
   
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dayCheckTimer?.cancel();
     _transactionsSub?.cancel(); // Cloud First: cancel Firestore subscription
     _authStateSub?.cancel(); // Cancel auth state listener
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPendingNavigation();
+    }
+  }
+
+  Future<void> _checkPendingNavigation() async {
+    const channel = MethodChannel('vfinance/navigation');
+    try {
+      final String? route = await channel.invokeMethod('getLaunchRoute');
+      if (route != null && mounted) {
+        // Reset to root first to avoid stacking screens
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        
+        if (route == 'add_income') {
+           _moMuc(ChiTieuMuc.soDu);
+        } else if (route == 'home') {
+           setState(() => _selectedIndex = 2);
+        }
+      }
+    } catch(e) {
+      debugPrint('Nav error: $e');
+    }
+  }
+
+  void _updateWidget() {
+    try {
+      // Calculate values using existing getters
+      final balance = _allTimeIncome - _allTimeExpenses;
+      final income = _monthlyIncome;
+      final expense = _monthlyExpenses;
+      final displayName = FirebaseAuth.instance.currentUser?.displayName;
+      
+      // Calculate daily expense from _chiTheoMuc (which contains today's items)
+      int dailyExpense = 0;
+      for (final muc in ChiTieuMuc.values) {
+        if (muc == ChiTieuMuc.soDu || muc == ChiTieuMuc.lichSu || muc == ChiTieuMuc.caiDat) continue;
+        final items = _chiTheoMuc[muc] ?? [];
+        for (final item in items) {
+           dailyExpense += item.soTien;
+        }
+      }
+      
+      final now = DateTime.now();
+      final dateStr = '${now.day}/${now.month}';
+
+      _widgetService.updateWidgetData(
+        balance: balance, 
+        income: income, 
+        expense: expense,
+        appLanguage: appLanguage,
+        displayName: displayName,
+        dailyExpense: dailyExpense,
+        dateString: dateStr,
+      );
+    } catch (e) {
+      debugPrint('Widget update error: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -654,6 +728,9 @@ class _VFinanceAppState extends State<VFinanceApp> {
       setState(() => _isLoading = false);
       FlutterNativeSplash.remove();
     }
+    
+    // Update Home Widget logic
+    _updateWidget();
   }
   
   // Cloud First: Migration no longer needed - TransactionService handles all data
@@ -686,6 +763,9 @@ class _VFinanceAppState extends State<VFinanceApp> {
     
     // Save language setting
     await prefs.setString('app_language', appLanguage);
+    
+    // Update Home Widget
+    _updateWidget();
   }
 
   void _checkNewDay() {

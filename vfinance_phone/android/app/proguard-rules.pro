@@ -38,3 +38,15 @@
 -dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
 -dontwarn com.google.android.play.core.splitinstall.**
 -dontwarn com.google.android.play.core.tasks.**
+
+# Flutter Notification Listener
+-keep class im.zoe.labs.flutter_notification_listener.** { *; }
+-keep class android.service.notification.** { *; }
+-keep class * extends android.service.notification.NotificationListenerService { *; }
+-keepclassmembers class * extends android.service.notification.NotificationListenerService {
+    public void onNotificationPosted(android.service.notification.StatusBarNotification);
+    public void onNotificationRemoved(android.service.notification.StatusBarNotification);
+}
+
+# Flutter Local Notifications
+-keep class com.dexterous.** { *; }

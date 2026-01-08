@@ -42,19 +42,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasName = displayName.isNotEmpty;
     
     if (appLanguage == 'vi') {
-      if (hour >= 5 && hour < 11) return hasName ? '🌞 Chào buổi sáng $displayName! Chi tiêu thật "chill" nha.' : '🌞 Chào buổi sáng! Chi tiêu thật "chill" nha.';
-      if (hour >= 11 && hour < 13) return hasName ? '☀️ $displayName ơi, trưa ngon miệng và nhớ ghi "bill" nè.' : '☀️ Trưa ngon miệng và nhớ ghi "bill" nhé!';
-      if (hour >= 13 && hour < 18) return hasName ? '⛅ Chiều vui vẻ nha $displayName, đừng để tiền rơi nhé.' : '⛅ Chiều mát mẻ nhé! Giữ ví thật chặt nha.';
-      if (hour >= 18 && hour < 22) return hasName ? '🌙 Tối thư giãn và tổng kết ví chút nha $displayName ơi.' : '🌙 Tối thư giãn! Tổng kết ví chút nào';
-      return hasName ? '🌠 Ngủ sớm thôi $displayName ơi!\nSức khỏe là lãi quan trọng nhất.' : '🌠 Ngủ sớm thôi nào!\nSức khỏe là lãi nhất.';
+      if (hour >= 5 && hour < 11) return hasName ? '🌞 Chào buổi sáng nha $displayName! Chi tiêu thật "chill" nha.' : '🌞 Chào buổi sáng! Chi tiêu thật "chill" nha.';
+      if (hour >= 11 && hour < 13) return hasName ? '☀️ $displayName ơi, trưa ăn thật "feel" và nhớ ghi lại "bill" nha.' : '☀️ Ấy ơi, trưa ăn thật "feel" và nhớ ghi lại "bill" nha.';
+      if (hour >= 13 && hour < 18) return hasName ? '⛅ Chiều vui vẻ $displayName ơi, và "Đừng để tiền rơi" nhé.' : '⛅ Chiều vui vẻ nhé ấy ơi, và "Đừng để tiền rơi" nhé.';
+      if (hour >= 18 && hour < 22) return hasName ? '🌙 Tối lo "chốt sổ", sáng mai khỏi "khổ" nha $displayName ơi.' : '🌙 Tối lo "chốt sổ", để mai khỏi "khổ" nha.';
+      return hasName ? '🌠 Ngủ sớm thôi $displayName ơi! Lãi quan trọng nhất vẫn là lãi sức khỏe.' : '🌠 Ngủ sớm thôi nào! Lãi quan trọng nhất vẫn là lãi sức khỏe.';
     } else {
-      if (hour >= 5 && hour < 11) return hasName ? '🌞 Good morning, $displayName! Keep your spending chill today.' : '🌞 Good morning! Keep your spending chill today.';
-      if (hour >= 11 && hour < 13) return hasName ? '☀️ Bon appétit, $displayName! Don\'t forget to log the bill.' : '☀️ Bon appétit! Don\'t forget to log the bill.';
-      if (hour >= 13 && hour < 18) return hasName ? '⛅ Good afternoon, $displayName! Keep a close watch on your wallet.' : '⛅ Good afternoon! Keep a close watch on your wallet.';
-      if (hour >= 18 && hour < 22) return hasName ? '🌙 Good evening, $displayName! Time for a quick daily recap.' : '🌙 Good evening! Time for a quick daily recap.';
-      return hasName ? '🌠 Time for bed, $displayName!\nHealth is the best investment.' : '🌠 Time for bed!\nHealth is the best investment.';
+      if (hour >= 5 && hour < 11) return hasName ? '🌞 Good morning, $displayName! Keep your spending "chill" today.' : '🌞 Good morning! Keep your spending "chill" today.';
+      if (hour >= 11 && hour < 13) return hasName ? '☀️ Hey $displayName, enjoy your meal and remember to log the "bill".' : '☀️ Hey there, enjoy your meal and remember to log the "bill".';
+      if (hour >= 13 && hour < 18) return hasName ? '⛅ Good afternoon, $displayName! Don\'t let your money slip away.' : '⛅ Good afternoon! Don\'t let your money slip away.';
+      if (hour >= 18 && hour < 22)return hasName ? '🌙 Evening, $displayName! "Close the books" now for a worry-free tomorrow.' : '🌙 Evening! "Close the books" now for a worry-free tomorrow.';
+}
+return hasName 
+    ? '🌠 Time to sleep, $displayName! Health is the best investment.' 
+    : '🌠 Time to sleep! Health is the best investment.';
     }
-  }
 
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
